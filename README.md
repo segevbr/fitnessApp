@@ -6,6 +6,8 @@ Lucide icons. All state persists to `localStorage`.
 
 ## Run it
 
+Requires Node **20.19+ or 22.12+** (Vite 8).
+
 ```sh
 npm install
 npm run dev      # http://localhost:5173
