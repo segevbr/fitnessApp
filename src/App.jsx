@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import Auth from './Auth'
+import { supabase } from './supabase'
 import {
   Check,
   ChevronRight,
@@ -762,6 +764,14 @@ function SessionLine({ s, onDelete }) {
 
 // ---------- app ----------
 
+function LoadingScreen() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-mono dark:bg-zinc-950">
+      <span className="animate-pulse text-[10px] tracking-[0.3em] text-zinc-500">LOADING...</span>
+    </div>
+  )
+}
+
 export default function App() {
   const [data, setData] = useState(loadState)
   const [panel, setPanel] = useState(null) // park | cardio | soccer | review
@@ -770,17 +780,61 @@ export default function App() {
     if (stored) return stored === 'dark'
     return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
   })
+  const [user, setUser] = useState(null)
+  const [authReady, setAuthReady] = useState(false)
+  const [syncStatus, setSyncStatus] = useState('idle') // 'idle' | 'syncing' | 'error'
 
-  useEffect(() => {
-    localStorage.setItem(STORE_KEY, JSON.stringify(data))
-  }, [data])
-
+  // Theme
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
     document.documentElement.style.background = dark ? '#09090b' : '#fafafa'
     localStorage.setItem('fq-theme', dark ? 'dark' : 'light')
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#09090b' : '#fafafa')
   }, [dark])
+
+  // Auth state listener
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setAuthReady(true)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null)
+      if (event === 'SIGNED_OUT') setData(freshState())
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // Load state from Supabase after sign-in
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('user_data')
+      .select('state')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data: row }) => {
+        if (row?.state) setData({ ...freshState(), ...row.state })
+      })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  // Sync: localStorage immediately, Supabase debounced 1.2 s
+  useEffect(() => {
+    localStorage.setItem(STORE_KEY, JSON.stringify(data))
+    if (!user) return
+    setSyncStatus('syncing')
+    const t = setTimeout(async () => {
+      const { error } = await supabase.from('user_data').upsert({
+        user_id: user.id,
+        state: data,
+        updated_at: new Date().toISOString(),
+      })
+      setSyncStatus(error ? 'error' : 'idle')
+    }, 1200)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, user?.id])
 
   const q = quotaStatus(data.sessions)
   const parkDates = useMemo(
@@ -821,12 +875,21 @@ export default function App() {
     setPanel(null)
   }
 
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    localStorage.removeItem(STORE_KEY)
+  }
+
   const reset = () => {
     if (window.confirm('Wipe all weeks, sessions and targets?')) {
       localStorage.removeItem(STORE_KEY)
+      if (user) supabase.from('user_data').delete().eq('user_id', user.id).then(() => {})
       setData(freshState())
     }
   }
+
+  if (!authReady) return <LoadingScreen />
+  if (!user) return <Auth dark={dark} setDark={setDark} />
 
   return (
     <div className="min-h-screen bg-zinc-50 font-mono text-sm text-zinc-700 antialiased dark:bg-zinc-950 dark:text-zinc-300">
@@ -845,6 +908,17 @@ export default function App() {
               WK {String(data.week).padStart(2, '0')}
             </div>
             <div className="mt-0.5 flex items-center justify-end gap-3">
+              <span
+                className={`text-[9px] tracking-widest ${
+                  syncStatus === 'error'
+                    ? 'text-red-400'
+                    : syncStatus === 'syncing'
+                      ? 'animate-pulse text-amber-400'
+                      : 'text-emerald-400/50'
+                }`}
+              >
+                {syncStatus === 'error' ? '● ERR' : syncStatus === 'syncing' ? '● SYNC' : '●'}
+              </span>
               <button
                 type="button"
                 onClick={() => setDark(d => !d)}
@@ -856,10 +930,17 @@ export default function App() {
               </button>
               <button
                 type="button"
+                onClick={signOut}
+                className="flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+              >
+                SIGN OUT
+              </button>
+              <button
+                type="button"
                 onClick={reset}
                 className="flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-300 hover:text-red-400 dark:text-zinc-700"
               >
-                <RotateCcw size={9} /> RESET ALL
+                <RotateCcw size={9} /> RESET
               </button>
             </div>
           </div>
