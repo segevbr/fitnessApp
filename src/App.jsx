@@ -473,7 +473,8 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
   const [date, setDate] = useState(todayStr())
   const [shin, setShin] = useState('good')
   const [mode, setMode] = useState(soccer ? null : 'run')
-  const [duration, setDuration] = useState('')
+  const [durMin, setDurMin] = useState('')
+  const [durSec, setDurSec] = useState('')
   const [distance, setDistance] = useState('')
   const [avgHr, setAvgHr] = useState('')
 
@@ -493,7 +494,7 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
   if (soccer && dayName(date) !== 'SAT') warnings.push(`SOCCER IS SLOTTED SATURDAY — SELECTED ${dayName(date)}`)
   if (soccer && tight) warnings.push('TIGHT SHINS + MATCH IMPACT — MONITOR OR SIT OUT')
 
-  const valid = Number(duration) > 0
+  const valid = Number(durMin) > 0 || Number(durSec) > 0
   const Icon = soccer ? Trophy : HeartPulse
 
   const segBtn = (active, disabled, cls) =>
@@ -560,25 +561,50 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            ['DURATION MIN', duration, setDuration, '1'],
-            ['DISTANCE KM', distance, setDistance, '0.1'],
-            ['AVG HR BPM', avgHr, setAvgHr, '1'],
-          ].map(([label, value, set, step]) => (
-            <label key={label} className="block">
-              <span className="mb-1 block text-[9px] tracking-[0.2em] text-zinc-500">{label}</span>
+        <div className="space-y-2">
+          <div>
+            <span className="mb-1 block text-[9px] tracking-[0.2em] text-zinc-500">DURATION</span>
+            <div className="flex items-center gap-1">
               <input
                 type="number"
                 min="0"
-                step={step}
                 placeholder="0"
-                value={value}
-                onChange={e => set(e.target.value)}
-                className="w-full border border-zinc-300 bg-white px-2 py-1.5 text-sm font-bold text-zinc-900 tabular-nums outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
+                value={durMin}
+                onChange={e => setDurMin(e.target.value)}
+                className="w-16 border border-zinc-300 bg-white px-2 py-1.5 text-sm font-bold text-zinc-900 tabular-nums outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
               />
-            </label>
-          ))}
+              <span className="font-bold text-zinc-400 dark:text-zinc-600">:</span>
+              <input
+                type="number"
+                min="0"
+                max="59"
+                placeholder="00"
+                value={durSec}
+                onChange={e => setDurSec(Math.min(59, Math.max(0, Number(e.target.value) || 0)) || '')}
+                className="w-16 border border-zinc-300 bg-white px-2 py-1.5 text-sm font-bold text-zinc-900 tabular-nums outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
+              />
+              <span className="text-[9px] tracking-widest text-zinc-400 dark:text-zinc-600">MIN : SEC</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              ['DISTANCE KM', distance, setDistance, '0.1'],
+              ['AVG HR BPM', avgHr, setAvgHr, '1'],
+            ].map(([label, value, set, step]) => (
+              <label key={label} className="block">
+                <span className="mb-1 block text-[9px] tracking-[0.2em] text-zinc-500">{label}</span>
+                <input
+                  type="number"
+                  min="0"
+                  step={step}
+                  placeholder="0"
+                  value={value}
+                  onChange={e => set(e.target.value)}
+                  className="w-full border border-zinc-300 bg-white px-2 py-1.5 text-sm font-bold text-zinc-900 tabular-nums outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
+                />
+              </label>
+            ))}
+          </div>
         </div>
 
         {warnings.map(w => (
@@ -595,7 +621,7 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
               type: kind,
               date,
               mode: soccer ? null : mode,
-              duration: Number(duration) || 0,
+              duration: (Number(durMin) || 0) * 60 + (Number(durSec) || 0),
               distance: Number(distance) || 0,
               avgHr: clampInt(avgHr),
               shin,
@@ -728,11 +754,17 @@ const blocksFor = (count, required, optional = 0) => {
   })
 }
 
+const fmtDuration = secs => {
+  const m = Math.floor(secs / 60)
+  const s = secs % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 function SessionLine({ s, onDelete }) {
   const detail =
     s.type === 'park'
       ? EXERCISES.map(ex => `${ex.label[0]} ${s.sets[ex.key].join('/')}`).join(' · ')
-      : `${s.duration}MIN · ${s.distance}KM · ${s.avgHr || '—'}BPM`
+      : `${fmtDuration(s.duration)} · ${s.distance}KM · ${s.avgHr || '—'}BPM`
   const tag =
     s.type === 'park' ? 'PARK' : s.type === 'soccer' ? 'SOCCER' : s.mode === 'swim' ? 'SWIM' : 'RUN'
   const tagCls =
