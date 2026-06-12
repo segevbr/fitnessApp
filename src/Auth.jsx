@@ -3,51 +3,22 @@ import { ChevronRight, Moon, Sun } from 'lucide-react'
 import { supabase } from './supabase'
 
 export default function Auth({ dark, setDark }) {
-  const [tab, setTab] = useState('in') // 'in' | 'up'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
-  const [notice, setNotice] = useState(null)
-
-  function switchTab(t) {
-    setTab(t)
-    setError(null)
-    setNotice(null)
-  }
 
   async function submit(e) {
     e.preventDefault()
     setLoading(true)
     setError(null)
-    setNotice(null)
-
-    if (tab === 'in') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError(error.message)
-    } else {
-      const { data, error } = await supabase.auth.signUp({ email, password })
-      if (error) {
-        setError(error.message)
-      } else if (!data.session) {
-        // Email confirmation required
-        setNotice('CHECK YOUR EMAIL FOR A CONFIRMATION LINK, THEN SIGN IN.')
-        setTab('in')
-      }
-    }
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) setError(error.message)
     setLoading(false)
   }
 
   const fieldCls =
     'w-full border border-zinc-300 bg-white px-3 py-2 text-sm font-bold text-zinc-900 outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400'
-
-  const tabCls = active =>
-    `flex-1 border-b-2 pb-2 text-[11px] font-bold tracking-[0.25em] transition-colors ${
-      active
-        ? 'border-emerald-400 text-zinc-900 dark:text-zinc-100'
-        : 'border-transparent text-zinc-400 hover:text-zinc-700 dark:text-zinc-600 dark:hover:text-zinc-300'
-    }`
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-4 font-mono dark:bg-zinc-950">
@@ -58,7 +29,7 @@ export default function Auth({ dark, setDark }) {
               FLOATING<span className="text-emerald-400">//</span>QUOTA
             </h1>
             <p className="mt-0.5 text-[10px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
-              SIGN IN TO SYNC YOUR DATA
+              PRIVATE — SIGN IN TO CONTINUE
             </p>
           </div>
           <button
@@ -72,74 +43,45 @@ export default function Auth({ dark, setDark }) {
           </button>
         </div>
 
-        <div className="border border-zinc-200 dark:border-zinc-800">
-          <div className="flex gap-4 border-b border-zinc-200 px-4 pt-4 dark:border-zinc-800">
-            <button type="button" className={tabCls(tab === 'in')} onClick={() => switchTab('in')}>
-              SIGN IN
-            </button>
-            <button type="button" className={tabCls(tab === 'up')} onClick={() => switchTab('up')}>
-              CREATE ACCOUNT
-            </button>
-          </div>
+        <form onSubmit={submit} className="space-y-3 border border-zinc-200 p-4 dark:border-zinc-800">
+          <label className="block">
+            <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">EMAIL</span>
+            <input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              className={fieldCls}
+              placeholder="you@example.com"
+            />
+          </label>
 
-          <form onSubmit={submit} className="space-y-3 p-4">
-            {notice && (
-              <p className="border border-emerald-400/40 bg-emerald-400/5 px-3 py-2 text-[11px] leading-relaxed tracking-wide text-emerald-400">
-                {notice}
-              </p>
-            )}
+          <label className="block">
+            <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">PASSWORD</span>
+            <input
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className={fieldCls}
+              placeholder="••••••••"
+            />
+          </label>
 
-            <label className="block">
-              <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">EMAIL</span>
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className={fieldCls}
-                placeholder="you@example.com"
-              />
-            </label>
+          {error && (
+            <p className="text-[11px] tracking-wide text-red-400">{error.toUpperCase()}</p>
+          )}
 
-            <label className="block">
-              <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">PASSWORD</span>
-              <input
-                type="password"
-                required
-                autoComplete={tab === 'in' ? 'current-password' : 'new-password'}
-                minLength={tab === 'up' ? 8 : undefined}
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                className={fieldCls}
-                placeholder={tab === 'up' ? 'min 8 characters' : '••••••••'}
-              />
-            </label>
-
-            {error && (
-              <p className="text-[11px] tracking-wide text-red-400">{error.toUpperCase()}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex w-full items-center justify-center gap-2 border border-zinc-900 bg-zinc-900 px-3 py-2.5 text-xs font-bold tracking-[0.2em] text-zinc-50 transition-colors hover:bg-transparent hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:text-zinc-100"
-            >
-              {loading
-                ? 'LOADING...'
-                : tab === 'in'
-                  ? 'SIGN IN'
-                  : 'CREATE ACCOUNT'}
-              {!loading && <ChevronRight size={14} />}
-            </button>
-
-            {tab === 'up' && (
-              <p className="text-center text-[10px] leading-relaxed tracking-wide text-zinc-400 dark:text-zinc-600">
-                YOU MAY NEED TO CONFIRM YOUR EMAIL BEFORE SIGNING IN.
-              </p>
-            )}
-          </form>
-        </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 border border-zinc-900 bg-zinc-900 px-3 py-2.5 text-xs font-bold tracking-[0.2em] text-zinc-50 transition-colors hover:bg-transparent hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-30 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:text-zinc-100"
+          >
+            {loading ? 'LOADING...' : 'SIGN IN'} {!loading && <ChevronRight size={14} />}
+          </button>
+        </form>
       </div>
     </div>
   )
