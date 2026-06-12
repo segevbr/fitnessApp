@@ -265,6 +265,11 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
     }
   }
 
+  function quickLog() {
+    setValues(Object.fromEntries(EXERCISES.map(e => [e.key, [...targets[e.key]]])))
+    setPhase('review')
+  }
+
   function close() {
     const dirty = phase !== 'date' && Object.values(values).some(arr => arr.some(v => v != null))
     if (!dirty || window.confirm('Discard the park session in progress?')) onClose()
@@ -296,6 +301,9 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
             </div>
             <Btn kind={warning ? 'warn' : 'primary'} className="w-full" onClick={() => setPhase('live')}>
               {warning ? 'OVERRIDE & START' : 'START CIRCUIT'} <ChevronRight size={14} />
+            </Btn>
+            <Btn kind="ghost" className="w-full" onClick={quickLog}>
+              QUICK LOG — ENTER REPS, SKIP TIMER
             </Btn>
           </>
         )}
