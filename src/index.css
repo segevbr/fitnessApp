@@ -1,12 +1,22 @@
 @import "tailwindcss";
 
+/* Override built-in dark variant to use .dark class instead of media query */
+@variant dark (&:where(.dark, .dark *));
+
 html {
+  color-scheme: light;
+}
+html.dark {
   color-scheme: dark;
 }
 
 body {
-  background: #09090b;
+  background: transparent;
 }
+
+/* date input color-scheme follows the theme class */
+input[type=date] { color-scheme: light; }
+html.dark input[type=date] { color-scheme: dark; }
 
 /* native number spinners fight the terminal aesthetic */
 input[type="number"]::-webkit-inner-spin-button,

@@ -8,9 +8,11 @@ import {
   HeartPulse,
   Lock,
   Minus,
+  Moon,
   Plus,
   RotateCcw,
   SkipForward,
+  Sun,
   Timer,
   TrendingUp,
   TriangleAlert,
@@ -86,10 +88,13 @@ const clampInt = v => Math.max(0, Math.round(Number(v) || 0))
 
 // ---------- shared atoms ----------
 
+// Zinc scale is symmetric around 500: dark uses N, light uses (1000-N).
+// BTN.primary inverts (light bg/dark text ↔ dark bg/light text).
 const BTN = {
   primary:
-    'border border-zinc-100 bg-zinc-100 text-zinc-950 hover:bg-transparent hover:text-zinc-100 transition-colors',
-  ghost: 'border border-zinc-700 text-zinc-400 hover:border-zinc-300 hover:text-zinc-100 transition-colors',
+    'border border-zinc-900 bg-zinc-900 text-zinc-50 hover:bg-transparent hover:text-zinc-900 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:text-zinc-100 transition-colors',
+  ghost:
+    'border border-zinc-300 text-zinc-600 hover:border-zinc-700 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-300 dark:hover:text-zinc-100 transition-colors',
   warn: 'border border-amber-400 bg-amber-400 text-zinc-950 hover:bg-transparent hover:text-amber-400 transition-colors',
 }
 
@@ -105,8 +110,8 @@ function Btn({ kind = 'ghost', className = '', ...props }) {
 
 function Panel({ title, right, children }) {
   return (
-    <section className="border border-zinc-800 bg-zinc-900/30">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5">
+    <section className="border border-zinc-200 bg-zinc-100/50 dark:border-zinc-800 dark:bg-zinc-900/30">
+      <header className="flex items-center justify-between border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
         <h2 className="text-[10px] tracking-[0.3em] text-zinc-500">{title}</h2>
         {right}
       </header>
@@ -129,11 +134,11 @@ function WarnBox({ children, tone = 'amber' }) {
 function NumInput({ value, onChange, step = 1, wide = false }) {
   const bump = d => onChange(Math.max(0, (Number(value) || 0) + d))
   return (
-    <div className="inline-flex items-stretch border border-zinc-700 bg-zinc-950">
+    <div className="inline-flex items-stretch border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950">
       <button
         type="button"
         onClick={() => bump(-step)}
-        className="px-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        className="px-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
         aria-label="decrease"
       >
         <Minus size={12} />
@@ -143,12 +148,12 @@ function NumInput({ value, onChange, step = 1, wide = false }) {
         min="0"
         value={value}
         onChange={e => onChange(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
-        className={`${wide ? 'w-20 py-2 text-2xl' : 'w-12 py-1 text-sm'} bg-transparent text-center font-bold text-zinc-100 tabular-nums outline-none`}
+        className={`${wide ? 'w-20 py-2 text-2xl' : 'w-12 py-1 text-sm'} bg-transparent text-center font-bold text-zinc-900 tabular-nums outline-none dark:text-zinc-100`}
       />
       <button
         type="button"
         onClick={() => bump(step)}
-        className="px-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        className="px-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
         aria-label="increase"
       >
         <Plus size={12} />
@@ -166,7 +171,7 @@ function DateField({ value, onChange }) {
           type="date"
           value={value}
           onChange={e => onChange(e.target.value)}
-          className="border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 outline-none [color-scheme:dark] focus:border-zinc-400"
+          className="border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
         />
         <span className="text-xs tracking-widest text-zinc-500">{dayName(value)}</span>
       </div>
@@ -176,8 +181,8 @@ function DateField({ value, onChange }) {
 
 function Modal({ onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 backdrop-blur-sm">
-      <div className="mx-auto my-6 w-full max-w-md border border-zinc-700 bg-zinc-950">{children}</div>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm">
+      <div className="mx-auto my-6 w-full max-w-md border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950">{children}</div>
       <button type="button" className="hidden" onClick={onClose} aria-hidden />
     </div>
   )
@@ -185,12 +190,12 @@ function Modal({ onClose, children }) {
 
 function ModalHeader({ icon: Icon, title, onClose }) {
   return (
-    <header className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
-      <div className="flex items-center gap-2 text-zinc-100">
+    <header className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
+      <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
         <Icon size={14} className="text-emerald-400" />
         <h2 className="text-xs font-bold tracking-[0.25em]">{title}</h2>
       </div>
-      <button type="button" onClick={onClose} className="text-zinc-600 hover:text-zinc-100" aria-label="close">
+      <button type="button" onClick={onClose} className="text-zinc-400 hover:text-zinc-900 dark:text-zinc-600 dark:hover:text-zinc-100" aria-label="close">
         <X size={16} />
       </button>
     </header>
@@ -282,12 +287,12 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
             {parkCount >= QUOTA.park && (
               <WarnBox>PARK QUOTA ALREADY MET {parkCount}/{QUOTA.park} — THIS LOGS AS EXTRA VOLUME</WarnBox>
             )}
-            <div className="border border-zinc-800 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+            <div className="border border-zinc-200 px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:border-zinc-800">
               CIRCUIT ▸{' '}
               {EXERCISES.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 'S' : ''}`).join(
                 ' ▸ ',
               )}
-              <div className="mt-1 text-zinc-600">MANDATORY {REST_SECONDS / 60}:00 REST BETWEEN SETS.</div>
+              <div className="mt-1 text-zinc-400 dark:text-zinc-600">MANDATORY {REST_SECONDS / 60}:00 REST BETWEEN SETS.</div>
             </div>
             <Btn kind={warning ? 'warn' : 'primary'} className="w-full" onClick={() => setPhase('live')}>
               {warning ? 'OVERRIDE & START' : 'START CIRCUIT'} <ChevronRight size={14} />
@@ -305,12 +310,12 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                     d.logged
                       ? 'border-emerald-400 bg-emerald-400'
                       : d.active
-                        ? 'animate-pulse border-zinc-100 bg-zinc-100/20'
-                        : 'border-zinc-800'
+                        ? 'animate-pulse border-zinc-900 bg-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100/20'
+                        : 'border-zinc-200 dark:border-zinc-800'
                   }`}
                 />
               ))}
-              <span className="ml-auto text-[10px] tracking-widest text-zinc-600">
+              <span className="ml-auto text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">
                 {fmtDate(date)} · SET {Math.min(step + 1, steps.length)}/{steps.length}
               </span>
             </div>
@@ -321,14 +326,14 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                   e.preventDefault()
                   logSet()
                 }}
-                className="space-y-3 border border-zinc-800 p-3"
+                className="space-y-3 border border-zinc-200 p-3 dark:border-zinc-800"
               >
                 <div className="flex items-baseline justify-between">
                   <div>
                     <div className="text-[10px] tracking-[0.25em] text-zinc-500">
                       EXERCISE {EXERCISES.findIndex(e => e.key === cur.ex.key) + 1}/4 · SET {cur.set + 1}/{SETS}
                     </div>
-                    <div className="text-2xl font-bold tracking-widest text-zinc-100">{cur.ex.label}</div>
+                    <div className="text-2xl font-bold tracking-widest text-zinc-900 dark:text-zinc-100">{cur.ex.label}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] tracking-[0.25em] text-zinc-500">TARGET</div>
@@ -340,7 +345,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <NumInput value={input} onChange={setInput} step={cur.ex.inc} wide />
-                  <div className="text-[10px] leading-relaxed tracking-widest text-zinc-600">
+                  <div className="text-[10px] leading-relaxed tracking-widest text-zinc-400 dark:text-zinc-600">
                     {[0, 1, 2]
                       .filter(s => values[cur.ex.key][s] != null)
                       .map(s => `S${s + 1}:${values[cur.ex.key][s]}✓`)
@@ -359,17 +364,17 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 <div className="flex items-center justify-center gap-2 text-[10px] tracking-[0.3em] text-emerald-400">
                   <Timer size={12} /> REST PROTOCOL — MANDATORY
                 </div>
-                <div className="text-6xl font-bold text-zinc-100 tabular-nums">
+                <div className="text-6xl font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
                   {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}
                 </div>
-                <div className="h-1 w-full bg-zinc-800">
+                <div className="h-1 w-full bg-zinc-200 dark:bg-zinc-800">
                   <div
                     className="h-1 bg-emerald-400 transition-all duration-200"
                     style={{ width: `${((REST_SECONDS - remaining) / REST_SECONDS) * 100}%` }}
                   />
                 </div>
                 {next && (
-                  <div className="text-[11px] tracking-widest text-zinc-400">
+                  <div className="text-[11px] tracking-widest text-zinc-600 dark:text-zinc-400">
                     NEXT ▸ {next.ex.label} · SET {next.set + 1}/{SETS} · TARGET {targets[next.ex.key][next.set]}{' '}
                     {next.ex.unit}
                   </div>
@@ -380,7 +385,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                     setSkips(s => s + 1)
                     advance()
                   }}
-                  className="mx-auto flex items-center gap-1 text-[10px] tracking-[0.25em] text-zinc-600 hover:text-amber-400"
+                  className="mx-auto flex items-center gap-1 text-[10px] tracking-[0.25em] text-zinc-400 hover:text-amber-400 dark:text-zinc-600"
                 >
                   <SkipForward size={11} /> SKIP REST — LOGGED AS VIOLATION
                 </button>
@@ -395,7 +400,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
             <div className="space-y-2">
               {EXERCISES.map(ex => (
                 <div key={ex.key} className="flex items-center justify-between gap-2">
-                  <span className="w-20 text-[11px] tracking-widest text-zinc-300">{ex.label}</span>
+                  <span className="w-20 text-[11px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.label}</span>
                   <div className="flex gap-1">
                     {[0, 1, 2].map(s => (
                       <NumInput
@@ -412,7 +417,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                       />
                     ))}
                   </div>
-                  <span className="w-16 text-right text-[10px] text-zinc-600 tabular-nums">
+                  <span className="w-16 text-right text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
                     T {targets[ex.key].join('·')}
                   </span>
                 </div>
@@ -484,10 +489,10 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
   const segBtn = (active, disabled, cls) =>
     `flex flex-1 items-center justify-center gap-2 border px-3 py-2 text-xs font-bold tracking-[0.2em] transition-colors ${
       disabled
-        ? 'cursor-not-allowed border-zinc-800 text-zinc-700'
+        ? 'cursor-not-allowed border-zinc-200 text-zinc-300 dark:border-zinc-800 dark:text-zinc-700'
         : active
           ? cls
-          : 'border-zinc-700 text-zinc-500 hover:text-zinc-200'
+          : 'border-zinc-300 text-zinc-500 hover:text-zinc-800 dark:border-zinc-700 dark:hover:text-zinc-200'
     }`
 
   return (
@@ -530,7 +535,7 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
                 type="button"
                 disabled={tight}
                 onClick={() => setMode('run')}
-                className={segBtn(mode === 'run', tight, 'border-zinc-100 bg-zinc-100 text-zinc-950')}
+                className={segBtn(mode === 'run', tight, 'border-zinc-900 bg-zinc-900 text-zinc-50 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950')}
               >
                 {tight ? <Lock size={13} /> : <Footprints size={13} />} RUN
               </button>
@@ -560,7 +565,7 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
                 placeholder="0"
                 value={value}
                 onChange={e => set(e.target.value)}
-                className="w-full border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm font-bold text-zinc-100 tabular-nums outline-none focus:border-zinc-400"
+                className="w-full border border-zinc-300 bg-white px-2 py-1.5 text-sm font-bold text-zinc-900 tabular-nums outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
               />
             </label>
           ))}
@@ -589,7 +594,7 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
         >
           <Check size={14} /> {warnings.length ? 'OVERRIDE & LOG' : 'LOG SESSION'}
         </Btn>
-        {!valid && <p className="text-center text-[10px] tracking-widest text-zinc-600">DURATION REQUIRED</p>}
+        {!valid && <p className="text-center text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">DURATION REQUIRED</p>}
       </div>
     </Modal>
   )
@@ -608,8 +613,8 @@ function WeekReview({ data, onConfirm, onClose }) {
     <Modal onClose={onClose}>
       <ModalHeader icon={TrendingUp} title={`WEEK ${String(data.week).padStart(2, '0')} // PROGRESSION ENGINE`} onClose={onClose} />
       <div className="space-y-3 p-3">
-        <div className="flex items-center justify-between border border-zinc-800 px-3 py-2 text-[11px] tracking-widest">
-          <span className="text-zinc-400">
+        <div className="flex items-center justify-between border border-zinc-200 px-3 py-2 text-[11px] tracking-widest dark:border-zinc-800">
+          <span className="text-zinc-600 dark:text-zinc-400">
             PARK {q.parks}/{QUOTA.park} · CARDIO {q.cardio}/{QUOTA.cardioMin}–{QUOTA.cardioMax} · SOCCER {q.soccer}/
             {QUOTA.soccer}
           </span>
@@ -626,12 +631,12 @@ function WeekReview({ data, onConfirm, onClose }) {
           {EXERCISES.map(ex => {
             const p = preview.out[ex.key]
             return (
-              <div key={ex.key} className="border border-zinc-800 px-3 py-2">
+              <div key={ex.key} className="border border-zinc-200 px-3 py-2 dark:border-zinc-800">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="w-20 text-[11px] tracking-widest text-zinc-300">{ex.label}</span>
+                  <span className="w-20 text-[11px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.label}</span>
                   <span className="flex items-center gap-2 font-bold tabular-nums">
                     <span className="text-zinc-500">{data.targets[ex.key].join('·')}</span>
-                    <ChevronRight size={12} className="text-zinc-600" />
+                    <ChevronRight size={12} className="text-zinc-400 dark:text-zinc-600" />
                     <span className={statusCls[p.status]}>{p.next.join('·')}</span>
                   </span>
                 </div>
@@ -674,8 +679,8 @@ function QuotaRow({ icon: Icon, label, sub, blocks, count, onLog }) {
     <div className="flex items-center gap-3 py-1.5">
       <Icon size={15} className="shrink-0 text-zinc-500" />
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-bold tracking-[0.2em] text-zinc-200">{label}</div>
-        <div className="text-[10px] tracking-widest text-zinc-600">{sub}</div>
+        <div className="text-xs font-bold tracking-[0.2em] text-zinc-800 dark:text-zinc-200">{label}</div>
+        <div className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">{sub}</div>
       </div>
       <div className="flex gap-1">
         {blocks.map((b, i) => (
@@ -687,17 +692,17 @@ function QuotaRow({ icon: Icon, label, sub, blocks, count, onLog }) {
                 : b === 'over'
                   ? 'border-amber-400 bg-amber-400'
                   : b === 'optional'
-                    ? 'border-dashed border-zinc-700'
-                    : 'border-zinc-700'
+                    ? 'border-dashed border-zinc-300 dark:border-zinc-700'
+                    : 'border-zinc-300 dark:border-zinc-700'
             }`}
           />
         ))}
       </div>
-      <span className="w-12 text-right text-xs font-bold text-zinc-300 tabular-nums">{count}</span>
+      <span className="w-12 text-right text-xs font-bold text-zinc-700 tabular-nums dark:text-zinc-300">{count}</span>
       <button
         type="button"
         onClick={onLog}
-        className="flex items-center gap-1 border border-zinc-700 px-2 py-1 text-[10px] font-bold tracking-widest text-zinc-300 hover:border-emerald-400 hover:text-emerald-400"
+        className="flex items-center gap-1 border border-zinc-300 px-2 py-1 text-[10px] font-bold tracking-widest text-zinc-700 hover:border-emerald-400 hover:text-emerald-400 dark:border-zinc-700 dark:text-zinc-300"
       >
         <Plus size={11} /> LOG
       </button>
@@ -727,12 +732,12 @@ function SessionLine({ s, onDelete }) {
         ? 'text-amber-400 border-amber-400/50'
         : s.mode === 'swim'
           ? 'text-sky-400 border-sky-400/50'
-          : 'text-zinc-200 border-zinc-500'
+          : 'text-zinc-800 border-zinc-500 dark:text-zinc-200'
   return (
     <div className="flex items-center gap-2 py-1 text-[11px]">
       <span className="w-14 shrink-0 text-zinc-500 tabular-nums">{fmtDate(s.date)}</span>
       <span className={`shrink-0 border px-1.5 py-0.5 text-[9px] font-bold tracking-widest ${tagCls}`}>{tag}</span>
-      <span className="min-w-0 flex-1 truncate text-zinc-400 tabular-nums">{detail}</span>
+      <span className="min-w-0 flex-1 truncate text-zinc-600 tabular-nums dark:text-zinc-400">{detail}</span>
       {s.type !== 'park' && s.shin === 'tight' && (
         <span className="shrink-0 text-[9px] font-bold tracking-widest text-red-400">SHIN:TIGHT</span>
       )}
@@ -740,7 +745,7 @@ function SessionLine({ s, onDelete }) {
       {s.restSkips > 0 && (
         <span className="shrink-0 text-[9px] tracking-widest text-amber-400">SKIP×{s.restSkips}</span>
       )}
-      <button type="button" onClick={onDelete} className="shrink-0 text-zinc-700 hover:text-red-400" aria-label="delete">
+      <button type="button" onClick={onDelete} className="shrink-0 text-zinc-300 hover:text-red-400 dark:text-zinc-700" aria-label="delete">
         <X size={12} />
       </button>
     </div>
@@ -752,10 +757,22 @@ function SessionLine({ s, onDelete }) {
 export default function App() {
   const [data, setData] = useState(loadState)
   const [panel, setPanel] = useState(null) // park | cardio | soccer | review
+  const [dark, setDark] = useState(() => {
+    const stored = localStorage.getItem('fq-theme')
+    if (stored) return stored === 'dark'
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? true
+  })
 
   useEffect(() => {
     localStorage.setItem(STORE_KEY, JSON.stringify(data))
   }, [data])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark)
+    document.documentElement.style.background = dark ? '#09090b' : '#fafafa'
+    localStorage.setItem('fq-theme', dark ? 'dark' : 'light')
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#09090b' : '#fafafa')
+  }, [dark])
 
   const q = quotaStatus(data.sessions)
   const parkDates = useMemo(
@@ -804,28 +821,39 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 font-mono text-sm text-zinc-300 antialiased">
+    <div className="min-h-screen bg-zinc-50 font-mono text-sm text-zinc-700 antialiased dark:bg-zinc-950 dark:text-zinc-300">
       <div className="mx-auto max-w-2xl space-y-3 p-3 pb-10 sm:p-4">
         <header className="flex items-end justify-between pt-2">
           <div>
-            <h1 className="text-lg font-bold tracking-[0.3em] text-zinc-100">
+            <h1 className="text-lg font-bold tracking-[0.3em] text-zinc-900 dark:text-zinc-100">
               FLOATING<span className="text-emerald-400">//</span>QUOTA
             </h1>
-            <p className="mt-0.5 text-[10px] tracking-[0.2em] text-zinc-600">
+            <p className="mt-0.5 text-[10px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
               {fmtDate(todayStr())} · NO FIXED DAYS — HIT THE NUMBERS
             </p>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-bold text-zinc-100 tabular-nums">
+            <div className="text-2xl font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
               WK {String(data.week).padStart(2, '0')}
             </div>
-            <button
-              type="button"
-              onClick={reset}
-              className="mt-0.5 flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-700 hover:text-red-400"
-            >
-              <RotateCcw size={9} /> RESET ALL
-            </button>
+            <div className="mt-0.5 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDark(d => !d)}
+                className="flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+                aria-label="toggle theme"
+              >
+                {dark ? <Sun size={10} /> : <Moon size={10} />}
+                {dark ? 'LIGHT' : 'DARK'}
+              </button>
+              <button
+                type="button"
+                onClick={reset}
+                className="flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-300 hover:text-red-400 dark:text-zinc-700"
+              >
+                <RotateCcw size={9} /> RESET ALL
+              </button>
+            </div>
           </div>
         </header>
 
@@ -855,12 +883,12 @@ export default function App() {
         <Panel
           title="WEEKLY QUOTA — FLOATING"
           right={
-            <span className={`text-[10px] font-bold tracking-[0.25em] ${q.met ? 'text-emerald-400' : 'text-zinc-600'}`}>
+            <span className={`text-[10px] font-bold tracking-[0.25em] ${q.met ? 'text-emerald-400' : 'text-zinc-400 dark:text-zinc-600'}`}>
               {q.met ? '■ QUOTA MET' : '□ OPEN'}
             </span>
           }
         >
-          <div className="divide-y divide-zinc-800/60">
+          <div className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
             <QuotaRow
               icon={Dumbbell}
               label="PARK STRENGTH"
@@ -891,13 +919,13 @@ export default function App() {
         <Panel title={`STRENGTH TARGETS — WK ${String(data.week).padStart(2, '0')}`}>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {EXERCISES.map(ex => (
-              <div key={ex.key} className="border border-zinc-800 px-2 py-1.5">
-                <div className="text-[9px] tracking-[0.2em] text-zinc-600">
-                  {ex.label} <span className="text-zinc-700">{ex.unit}</span>
+              <div key={ex.key} className="border border-zinc-200 px-2 py-1.5 dark:border-zinc-800">
+                <div className="text-[9px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
+                  {ex.label} <span className="text-zinc-300 dark:text-zinc-700">{ex.unit}</span>
                 </div>
-                <div className="text-lg font-bold text-zinc-100 tabular-nums">{data.targets[ex.key].join('·')}</div>
+                <div className="text-lg font-bold text-zinc-900 tabular-nums dark:text-zinc-100">{data.targets[ex.key].join('·')}</div>
                 {ex.cap && (
-                  <div className="text-[9px] tracking-widest text-zinc-700">
+                  <div className="text-[9px] tracking-widest text-zinc-300 dark:text-zinc-700">
                     HW CAP {SETS}×{ex.cap}
                   </div>
                 )}
@@ -906,13 +934,16 @@ export default function App() {
           </div>
         </Panel>
 
-        <Panel title="WEEK LOG" right={<span className="text-[10px] tracking-widest text-zinc-600">{sorted.length} SESSIONS</span>}>
+        <Panel
+          title="WEEK LOG"
+          right={<span className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">{sorted.length} SESSIONS</span>}
+        >
           {sorted.length === 0 ? (
-            <p className="py-2 text-center text-[11px] tracking-[0.2em] text-zinc-700">
+            <p className="py-2 text-center text-[11px] tracking-[0.2em] text-zinc-400 dark:text-zinc-700">
               NO SESSIONS — WEEK FLOATS UNTIL YOU MOVE
             </p>
           ) : (
-            <div className="divide-y divide-zinc-800/60">
+            <div className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
               {sorted.map(s => (
                 <SessionLine
                   key={s.id}
@@ -929,7 +960,10 @@ export default function App() {
         </Btn>
 
         {data.history.length > 0 && (
-          <Panel title="ARCHIVE" right={<span className="text-[10px] tracking-widest text-zinc-600">+ PROGRESS · = HOLD · ⟲ HW RESET</span>}>
+          <Panel
+            title="ARCHIVE"
+            right={<span className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">+ PROGRESS · = HOLD · ⟲ HW RESET</span>}
+          >
             <div className="space-y-1 text-[11px] tabular-nums">
               {data.history.map(h => (
                 <div key={h.week} className="flex items-center justify-between text-zinc-500">
@@ -949,7 +983,7 @@ export default function App() {
           </Panel>
         )}
 
-        <footer className="pt-1 text-center text-[9px] leading-relaxed tracking-[0.2em] text-zinc-700">
+        <footer className="pt-1 text-center text-[9px] leading-relaxed tracking-[0.2em] text-zinc-300 dark:text-zinc-700">
           48H BETWEEN PARK SESSIONS · TIGHT SHIN ⇒ SWIM ONLY · NO RUNS FRI/SUN · REST 2:00 BETWEEN SETS
         </footer>
       </div>
