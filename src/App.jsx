@@ -1,0 +1,972 @@
+import { useEffect, useMemo, useState } from 'react'
+import {
+  Check,
+  ChevronRight,
+  Dumbbell,
+  Flag,
+  Footprints,
+  HeartPulse,
+  Lock,
+  Minus,
+  Plus,
+  RotateCcw,
+  SkipForward,
+  Timer,
+  TrendingUp,
+  TriangleAlert,
+  Trophy,
+  Waves,
+  X,
+} from 'lucide-react'
+import {
+  EXERCISES,
+  QUOTA,
+  REST_SECONDS,
+  SETS,
+  STATUS_SYMBOL,
+  computeProgression,
+  consecutiveParkWarning,
+  dayName,
+  defaultTargets,
+  fmtDate,
+  quotaStatus,
+  runDayWarning,
+  todayStr,
+  uid,
+} from './engine'
+
+const STORE_KEY = 'floating-quota-v1'
+
+const freshState = () => ({
+  week: 1,
+  targets: defaultTargets(),
+  sessions: [],
+  history: [],
+  alert: null,
+})
+
+const loadState = () => {
+  try {
+    const raw = localStorage.getItem(STORE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed?.targets && Array.isArray(parsed.sessions)) return { ...freshState(), ...parsed }
+    }
+  } catch {
+    /* corrupted store falls through to fresh state */
+  }
+  return freshState()
+}
+
+function beep() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'square'
+    osc.frequency.value = 880
+    gain.gain.setValueAtTime(0.06, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.5)
+  } catch {
+    /* audio is best-effort */
+  }
+  try {
+    navigator.vibrate?.([150, 80, 150])
+  } catch {
+    /* vibration is best-effort */
+  }
+}
+
+const clampInt = v => Math.max(0, Math.round(Number(v) || 0))
+
+// ---------- shared atoms ----------
+
+const BTN = {
+  primary:
+    'border border-zinc-100 bg-zinc-100 text-zinc-950 hover:bg-transparent hover:text-zinc-100 transition-colors',
+  ghost: 'border border-zinc-700 text-zinc-400 hover:border-zinc-300 hover:text-zinc-100 transition-colors',
+  warn: 'border border-amber-400 bg-amber-400 text-zinc-950 hover:bg-transparent hover:text-amber-400 transition-colors',
+}
+
+function Btn({ kind = 'ghost', className = '', ...props }) {
+  return (
+    <button
+      type="button"
+      className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold tracking-[0.2em] uppercase disabled:cursor-not-allowed disabled:opacity-30 ${BTN[kind]} ${className}`}
+      {...props}
+    />
+  )
+}
+
+function Panel({ title, right, children }) {
+  return (
+    <section className="border border-zinc-800 bg-zinc-900/30">
+      <header className="flex items-center justify-between border-b border-zinc-800 px-3 py-1.5">
+        <h2 className="text-[10px] tracking-[0.3em] text-zinc-500">{title}</h2>
+        {right}
+      </header>
+      <div className="p-3">{children}</div>
+    </section>
+  )
+}
+
+function WarnBox({ children, tone = 'amber' }) {
+  const cls =
+    tone === 'red' ? 'border-red-500/70 bg-red-500/10 text-red-400' : 'border-amber-400/70 bg-amber-400/10 text-amber-400'
+  return (
+    <div className={`flex items-start gap-2 border px-3 py-2 text-[11px] leading-relaxed tracking-wide ${cls}`}>
+      <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+      <div>{children}</div>
+    </div>
+  )
+}
+
+function NumInput({ value, onChange, step = 1, wide = false }) {
+  const bump = d => onChange(Math.max(0, (Number(value) || 0) + d))
+  return (
+    <div className="inline-flex items-stretch border border-zinc-700 bg-zinc-950">
+      <button
+        type="button"
+        onClick={() => bump(-step)}
+        className="px-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        aria-label="decrease"
+      >
+        <Minus size={12} />
+      </button>
+      <input
+        type="number"
+        min="0"
+        value={value}
+        onChange={e => onChange(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
+        className={`${wide ? 'w-20 py-2 text-2xl' : 'w-12 py-1 text-sm'} bg-transparent text-center font-bold text-zinc-100 tabular-nums outline-none`}
+      />
+      <button
+        type="button"
+        onClick={() => bump(step)}
+        className="px-2 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-100"
+        aria-label="increase"
+      >
+        <Plus size={12} />
+      </button>
+    </div>
+  )
+}
+
+function DateField({ value, onChange }) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">DATE</span>
+      <div className="flex items-center gap-3">
+        <input
+          type="date"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm text-zinc-100 outline-none [color-scheme:dark] focus:border-zinc-400"
+        />
+        <span className="text-xs tracking-widest text-zinc-500">{dayName(value)}</span>
+      </div>
+    </label>
+  )
+}
+
+function Modal({ onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/85 p-3 backdrop-blur-sm">
+      <div className="mx-auto my-6 w-full max-w-md border border-zinc-700 bg-zinc-950">{children}</div>
+      <button type="button" className="hidden" onClick={onClose} aria-hidden />
+    </div>
+  )
+}
+
+function ModalHeader({ icon: Icon, title, onClose }) {
+  return (
+    <header className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
+      <div className="flex items-center gap-2 text-zinc-100">
+        <Icon size={14} className="text-emerald-400" />
+        <h2 className="text-xs font-bold tracking-[0.25em]">{title}</h2>
+      </div>
+      <button type="button" onClick={onClose} className="text-zinc-600 hover:text-zinc-100" aria-label="close">
+        <X size={16} />
+      </button>
+    </header>
+  )
+}
+
+// ---------- park session logger ----------
+
+function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
+  const steps = useMemo(() => EXERCISES.flatMap(ex => [0, 1, 2].map(set => ({ ex, set }))), [])
+  const [phase, setPhase] = useState('date') // date -> live -> review
+  const [date, setDate] = useState(todayStr())
+  const [step, setStep] = useState(0)
+  const [values, setValues] = useState(() =>
+    Object.fromEntries(EXERCISES.map(e => [e.key, Array(SETS).fill(null)])),
+  )
+  const [input, setInput] = useState(targets[EXERCISES[0].key][0])
+  const [restEnd, setRestEnd] = useState(null)
+  const [now, setNow] = useState(Date.now())
+  const [skips, setSkips] = useState(0)
+  const [struggled, setStruggled] = useState(false)
+
+  const cur = steps[Math.min(step, steps.length - 1)]
+  const next = steps[step + 1]
+  const warning = consecutiveParkWarning(date, parkDates)
+  const resting = restEnd != null
+  const remaining = resting ? Math.max(0, Math.ceil((restEnd - now) / 1000)) : 0
+
+  useEffect(() => {
+    if (!resting) return undefined
+    const id = setInterval(() => setNow(Date.now()), 200)
+    return () => clearInterval(id)
+  }, [resting])
+
+  useEffect(() => {
+    if (resting && now >= restEnd) {
+      beep()
+      advance()
+    }
+  })
+
+  function advance() {
+    setRestEnd(null)
+    setNow(Date.now())
+    const n = step + 1
+    if (n >= steps.length) {
+      setPhase('review')
+      return
+    }
+    setStep(n)
+    setInput(targets[steps[n].ex.key][steps[n].set])
+  }
+
+  function logSet() {
+    const v = clampInt(input)
+    setValues(prev => {
+      const copy = { ...prev, [cur.ex.key]: [...prev[cur.ex.key]] }
+      copy[cur.ex.key][cur.set] = v
+      return copy
+    })
+    if (step === steps.length - 1) {
+      setPhase('review')
+    } else {
+      const t = Date.now()
+      setNow(t)
+      setRestEnd(t + REST_SECONDS * 1000)
+    }
+  }
+
+  function close() {
+    const dirty = phase !== 'date' && Object.values(values).some(arr => arr.some(v => v != null))
+    if (!dirty || window.confirm('Discard the park session in progress?')) onClose()
+  }
+
+  const dots = steps.map((s, i) => {
+    const logged = values[s.ex.key][s.set] != null
+    const active = i === (resting ? step + 1 : step) && phase === 'live'
+    return { logged, active, group: s.set === 0 && i !== 0 }
+  })
+
+  return (
+    <Modal onClose={close}>
+      <ModalHeader icon={Dumbbell} title="PARK SESSION // STRENGTH" onClose={close} />
+      <div className="space-y-3 p-3">
+        {phase === 'date' && (
+          <>
+            <DateField value={date} onChange={setDate} />
+            {warning && <WarnBox>{warning}</WarnBox>}
+            {parkCount >= QUOTA.park && (
+              <WarnBox>PARK QUOTA ALREADY MET {parkCount}/{QUOTA.park} — THIS LOGS AS EXTRA VOLUME</WarnBox>
+            )}
+            <div className="border border-zinc-800 px-3 py-2 text-[11px] leading-relaxed text-zinc-500">
+              CIRCUIT ▸{' '}
+              {EXERCISES.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 'S' : ''}`).join(
+                ' ▸ ',
+              )}
+              <div className="mt-1 text-zinc-600">MANDATORY {REST_SECONDS / 60}:00 REST BETWEEN SETS.</div>
+            </div>
+            <Btn kind={warning ? 'warn' : 'primary'} className="w-full" onClick={() => setPhase('live')}>
+              {warning ? 'OVERRIDE & START' : 'START CIRCUIT'} <ChevronRight size={14} />
+            </Btn>
+          </>
+        )}
+
+        {phase === 'live' && (
+          <>
+            <div className="flex items-end gap-1">
+              {dots.map((d, i) => (
+                <span
+                  key={i}
+                  className={`h-3 w-3 border ${d.group ? 'ml-2' : ''} ${
+                    d.logged
+                      ? 'border-emerald-400 bg-emerald-400'
+                      : d.active
+                        ? 'animate-pulse border-zinc-100 bg-zinc-100/20'
+                        : 'border-zinc-800'
+                  }`}
+                />
+              ))}
+              <span className="ml-auto text-[10px] tracking-widest text-zinc-600">
+                {fmtDate(date)} · SET {Math.min(step + 1, steps.length)}/{steps.length}
+              </span>
+            </div>
+
+            {!resting && (
+              <form
+                onSubmit={e => {
+                  e.preventDefault()
+                  logSet()
+                }}
+                className="space-y-3 border border-zinc-800 p-3"
+              >
+                <div className="flex items-baseline justify-between">
+                  <div>
+                    <div className="text-[10px] tracking-[0.25em] text-zinc-500">
+                      EXERCISE {EXERCISES.findIndex(e => e.key === cur.ex.key) + 1}/4 · SET {cur.set + 1}/{SETS}
+                    </div>
+                    <div className="text-2xl font-bold tracking-widest text-zinc-100">{cur.ex.label}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] tracking-[0.25em] text-zinc-500">TARGET</div>
+                    <div className="text-2xl font-bold text-emerald-400 tabular-nums">
+                      {targets[cur.ex.key][cur.set]}
+                      <span className="ml-1 text-[10px] text-zinc-500">{cur.ex.unit}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <NumInput value={input} onChange={setInput} step={cur.ex.inc} wide />
+                  <div className="text-[10px] leading-relaxed tracking-widest text-zinc-600">
+                    {[0, 1, 2]
+                      .filter(s => values[cur.ex.key][s] != null)
+                      .map(s => `S${s + 1}:${values[cur.ex.key][s]}✓`)
+                      .join(' ') || 'NO SETS LOGGED'}
+                  </div>
+                </div>
+                <Btn kind="primary" className="w-full" onClick={logSet}>
+                  <Check size={14} /> LOG SET
+                  {step < steps.length - 1 && <span className="text-[10px] opacity-70">▸ STARTS 2:00 REST</span>}
+                </Btn>
+              </form>
+            )}
+
+            {resting && (
+              <div className="space-y-3 border border-emerald-400/40 bg-emerald-400/5 p-3 text-center">
+                <div className="flex items-center justify-center gap-2 text-[10px] tracking-[0.3em] text-emerald-400">
+                  <Timer size={12} /> REST PROTOCOL — MANDATORY
+                </div>
+                <div className="text-6xl font-bold text-zinc-100 tabular-nums">
+                  {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}
+                </div>
+                <div className="h-1 w-full bg-zinc-800">
+                  <div
+                    className="h-1 bg-emerald-400 transition-all duration-200"
+                    style={{ width: `${((REST_SECONDS - remaining) / REST_SECONDS) * 100}%` }}
+                  />
+                </div>
+                {next && (
+                  <div className="text-[11px] tracking-widest text-zinc-400">
+                    NEXT ▸ {next.ex.label} · SET {next.set + 1}/{SETS} · TARGET {targets[next.ex.key][next.set]}{' '}
+                    {next.ex.unit}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSkips(s => s + 1)
+                    advance()
+                  }}
+                  className="mx-auto flex items-center gap-1 text-[10px] tracking-[0.25em] text-zinc-600 hover:text-amber-400"
+                >
+                  <SkipForward size={11} /> SKIP REST — LOGGED AS VIOLATION
+                </button>
+              </div>
+            )}
+          </>
+        )}
+
+        {phase === 'review' && (
+          <>
+            <div className="text-[10px] tracking-[0.25em] text-zinc-500">REVIEW ▸ {fmtDate(date)}</div>
+            <div className="space-y-2">
+              {EXERCISES.map(ex => (
+                <div key={ex.key} className="flex items-center justify-between gap-2">
+                  <span className="w-20 text-[11px] tracking-widest text-zinc-300">{ex.label}</span>
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map(s => (
+                      <NumInput
+                        key={s}
+                        step={ex.inc}
+                        value={values[ex.key][s] ?? 0}
+                        onChange={v =>
+                          setValues(prev => {
+                            const copy = { ...prev, [ex.key]: [...prev[ex.key]] }
+                            copy[ex.key][s] = v
+                            return copy
+                          })
+                        }
+                      />
+                    ))}
+                  </div>
+                  <span className="w-16 text-right text-[10px] text-zinc-600 tabular-nums">
+                    T {targets[ex.key].join('·')}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {skips > 0 && <WarnBox>REST TIMER SKIPPED ×{skips} — RECOVERY PROTOCOL VIOLATED</WarnBox>}
+            <Btn
+              kind={struggled ? 'warn' : 'ghost'}
+              className="w-full"
+              onClick={() => setStruggled(s => !s)}
+            >
+              <Flag size={13} /> {struggled ? 'STRUGGLED — PROGRESSION WILL HOLD' : 'FLAG AS STRUGGLED'}
+            </Btn>
+            <Btn
+              kind="primary"
+              className="w-full"
+              onClick={() =>
+                onSave({
+                  id: uid(),
+                  type: 'park',
+                  date,
+                  sets: Object.fromEntries(
+                    EXERCISES.map(ex => [ex.key, values[ex.key].map(clampInt)]),
+                  ),
+                  struggled,
+                  restSkips: skips,
+                })
+              }
+            >
+              <Check size={14} /> SAVE SESSION
+            </Btn>
+          </>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+// ---------- cardio / soccer logger ----------
+
+function CardioLogger({ kind, sessions, onSave, onClose }) {
+  const soccer = kind === 'soccer'
+  const [date, setDate] = useState(todayStr())
+  const [shin, setShin] = useState('good')
+  const [mode, setMode] = useState(soccer ? null : 'run')
+  const [duration, setDuration] = useState('')
+  const [distance, setDistance] = useState('')
+  const [avgHr, setAvgHr] = useState('')
+
+  const tight = shin === 'tight'
+
+  useEffect(() => {
+    if (tight && mode === 'run') setMode('swim')
+  }, [tight, mode])
+
+  const q = quotaStatus(sessions)
+  const warnings = []
+  const runWarn = !soccer && mode === 'run' ? runDayWarning(date) : null
+  if (runWarn) warnings.push(runWarn)
+  if (!soccer && q.cardio >= QUOTA.cardioMax)
+    warnings.push(`CARDIO QUOTA MAX REACHED ${q.cardio}/${QUOTA.cardioMax} — THIS LOGS AS EXTRA LOAD`)
+  if (soccer && q.soccer >= QUOTA.soccer) warnings.push('SOCCER QUOTA ALREADY MET — EXTRA MATCH')
+  if (soccer && dayName(date) !== 'SAT') warnings.push(`SOCCER IS SLOTTED SATURDAY — SELECTED ${dayName(date)}`)
+  if (soccer && tight) warnings.push('TIGHT SHINS + MATCH IMPACT — MONITOR OR SIT OUT')
+
+  const valid = Number(duration) > 0
+  const Icon = soccer ? Trophy : HeartPulse
+
+  const segBtn = (active, disabled, cls) =>
+    `flex flex-1 items-center justify-center gap-2 border px-3 py-2 text-xs font-bold tracking-[0.2em] transition-colors ${
+      disabled
+        ? 'cursor-not-allowed border-zinc-800 text-zinc-700'
+        : active
+          ? cls
+          : 'border-zinc-700 text-zinc-500 hover:text-zinc-200'
+    }`
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalHeader icon={Icon} title={soccer ? 'SOCCER // MATCH DAY' : 'CARDIO // ENGINE WORK'} onClose={onClose} />
+      <div className="space-y-3 p-3">
+        <DateField value={date} onChange={setDate} />
+
+        <div>
+          <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">SHIN STATUS</span>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => setShin('good')}
+              className={segBtn(!tight, false, 'border-emerald-400 bg-emerald-400 text-zinc-950')}
+            >
+              <Check size={13} /> GOOD
+            </button>
+            <button
+              type="button"
+              onClick={() => setShin('tight')}
+              className={segBtn(tight, false, 'border-red-500 bg-red-500 text-zinc-950')}
+            >
+              <TriangleAlert size={13} /> TIGHT
+            </button>
+          </div>
+        </div>
+
+        {tight && (
+          <WarnBox tone="red">
+            SHIN SPLINT PROTOCOL ACTIVE — RUN LOCKED{!soccer && ', SWIM FORCED'}. NO IMPACT UNTIL CLEAR.
+          </WarnBox>
+        )}
+
+        {!soccer && (
+          <div>
+            <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">MODE</span>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                disabled={tight}
+                onClick={() => setMode('run')}
+                className={segBtn(mode === 'run', tight, 'border-zinc-100 bg-zinc-100 text-zinc-950')}
+              >
+                {tight ? <Lock size={13} /> : <Footprints size={13} />} RUN
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('swim')}
+                className={segBtn(mode === 'swim', false, 'border-sky-400 bg-sky-400 text-zinc-950')}
+              >
+                <Waves size={13} /> SWIM
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ['DURATION MIN', duration, setDuration, '1'],
+            ['DISTANCE KM', distance, setDistance, '0.1'],
+            ['AVG HR BPM', avgHr, setAvgHr, '1'],
+          ].map(([label, value, set, step]) => (
+            <label key={label} className="block">
+              <span className="mb-1 block text-[9px] tracking-[0.2em] text-zinc-500">{label}</span>
+              <input
+                type="number"
+                min="0"
+                step={step}
+                placeholder="0"
+                value={value}
+                onChange={e => set(e.target.value)}
+                className="w-full border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm font-bold text-zinc-100 tabular-nums outline-none focus:border-zinc-400"
+              />
+            </label>
+          ))}
+        </div>
+
+        {warnings.map(w => (
+          <WarnBox key={w}>{w}</WarnBox>
+        ))}
+
+        <Btn
+          kind={warnings.length ? 'warn' : 'primary'}
+          className="w-full"
+          disabled={!valid}
+          onClick={() =>
+            onSave({
+              id: uid(),
+              type: kind,
+              date,
+              mode: soccer ? null : mode,
+              duration: Number(duration) || 0,
+              distance: Number(distance) || 0,
+              avgHr: clampInt(avgHr),
+              shin,
+            })
+          }
+        >
+          <Check size={14} /> {warnings.length ? 'OVERRIDE & LOG' : 'LOG SESSION'}
+        </Btn>
+        {!valid && <p className="text-center text-[10px] tracking-widest text-zinc-600">DURATION REQUIRED</p>}
+      </div>
+    </Modal>
+  )
+}
+
+// ---------- week review / progression ----------
+
+function WeekReview({ data, onConfirm, onClose }) {
+  const preview = useMemo(() => computeProgression(data.targets, data.sessions), [data])
+  const q = quotaStatus(data.sessions)
+  const upgrades = EXERCISES.filter(e => preview.out[e.key].status === 'upgrade')
+
+  const statusCls = { progress: 'text-emerald-400', hold: 'text-zinc-500', upgrade: 'text-red-400' }
+
+  return (
+    <Modal onClose={onClose}>
+      <ModalHeader icon={TrendingUp} title={`WEEK ${String(data.week).padStart(2, '0')} // PROGRESSION ENGINE`} onClose={onClose} />
+      <div className="space-y-3 p-3">
+        <div className="flex items-center justify-between border border-zinc-800 px-3 py-2 text-[11px] tracking-widest">
+          <span className="text-zinc-400">
+            PARK {q.parks}/{QUOTA.park} · CARDIO {q.cardio}/{QUOTA.cardioMin}–{QUOTA.cardioMax} · SOCCER {q.soccer}/
+            {QUOTA.soccer}
+          </span>
+          <span className={q.met ? 'font-bold text-emerald-400' : 'font-bold text-amber-400'}>
+            {q.met ? 'QUOTA MET' : 'INCOMPLETE'}
+          </span>
+        </div>
+
+        {preview.struggled && (
+          <WarnBox>STRUGGLED FLAG ON RECORD — ALL TARGETS HOLD THIS ROLLOVER</WarnBox>
+        )}
+
+        <div className="space-y-1">
+          {EXERCISES.map(ex => {
+            const p = preview.out[ex.key]
+            return (
+              <div key={ex.key} className="border border-zinc-800 px-3 py-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="w-20 text-[11px] tracking-widest text-zinc-300">{ex.label}</span>
+                  <span className="flex items-center gap-2 font-bold tabular-nums">
+                    <span className="text-zinc-500">{data.targets[ex.key].join('·')}</span>
+                    <ChevronRight size={12} className="text-zinc-600" />
+                    <span className={statusCls[p.status]}>{p.next.join('·')}</span>
+                  </span>
+                </div>
+                <div className={`mt-0.5 text-right text-[10px] tracking-widest ${statusCls[p.status]}`}>
+                  {p.status === 'hold' ? `HOLD — ${p.reason}` : p.reason}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {upgrades.length > 0 && (
+          <div className="border border-red-500 bg-red-500/10 p-3">
+            <div className="flex items-center gap-2 text-xs font-bold tracking-[0.25em] text-red-400">
+              <TriangleAlert size={14} /> UPGRADE HARDWARE
+            </div>
+            {upgrades.map(ex => (
+              <p key={ex.key} className="mt-1 text-[11px] leading-relaxed tracking-wide text-red-300">
+                {ex.label} HIT {SETS}×{ex.cap} — {ex.hw}. TARGETS RESET TO {SETS}×{ex.start}.
+              </p>
+            ))}
+          </div>
+        )}
+
+        <Btn kind="primary" className="w-full" onClick={() => onConfirm(preview)}>
+          <Check size={14} /> ARCHIVE WEEK & APPLY TARGETS
+        </Btn>
+        <Btn className="w-full" onClick={onClose}>
+          CANCEL — KEEP WEEK OPEN
+        </Btn>
+      </div>
+    </Modal>
+  )
+}
+
+// ---------- dashboard pieces ----------
+
+function QuotaRow({ icon: Icon, label, sub, blocks, count, onLog }) {
+  return (
+    <div className="flex items-center gap-3 py-1.5">
+      <Icon size={15} className="shrink-0 text-zinc-500" />
+      <div className="min-w-0 flex-1">
+        <div className="text-xs font-bold tracking-[0.2em] text-zinc-200">{label}</div>
+        <div className="text-[10px] tracking-widest text-zinc-600">{sub}</div>
+      </div>
+      <div className="flex gap-1">
+        {blocks.map((b, i) => (
+          <span
+            key={i}
+            className={`h-3.5 w-3.5 border ${
+              b === 'done'
+                ? 'border-emerald-400 bg-emerald-400'
+                : b === 'over'
+                  ? 'border-amber-400 bg-amber-400'
+                  : b === 'optional'
+                    ? 'border-dashed border-zinc-700'
+                    : 'border-zinc-700'
+            }`}
+          />
+        ))}
+      </div>
+      <span className="w-12 text-right text-xs font-bold text-zinc-300 tabular-nums">{count}</span>
+      <button
+        type="button"
+        onClick={onLog}
+        className="flex items-center gap-1 border border-zinc-700 px-2 py-1 text-[10px] font-bold tracking-widest text-zinc-300 hover:border-emerald-400 hover:text-emerald-400"
+      >
+        <Plus size={11} /> LOG
+      </button>
+    </div>
+  )
+}
+
+const blocksFor = (count, required, optional = 0) => {
+  const total = required + optional
+  return Array.from({ length: Math.max(total, count) }, (_, i) => {
+    if (i < count) return i < total ? 'done' : 'over'
+    return i < required ? 'todo' : 'optional'
+  })
+}
+
+function SessionLine({ s, onDelete }) {
+  const detail =
+    s.type === 'park'
+      ? EXERCISES.map(ex => `${ex.label[0]} ${s.sets[ex.key].join('/')}`).join(' · ')
+      : `${s.duration}MIN · ${s.distance}KM · ${s.avgHr || '—'}BPM`
+  const tag =
+    s.type === 'park' ? 'PARK' : s.type === 'soccer' ? 'SOCCER' : s.mode === 'swim' ? 'SWIM' : 'RUN'
+  const tagCls =
+    s.type === 'park'
+      ? 'text-emerald-400 border-emerald-400/50'
+      : s.type === 'soccer'
+        ? 'text-amber-400 border-amber-400/50'
+        : s.mode === 'swim'
+          ? 'text-sky-400 border-sky-400/50'
+          : 'text-zinc-200 border-zinc-500'
+  return (
+    <div className="flex items-center gap-2 py-1 text-[11px]">
+      <span className="w-14 shrink-0 text-zinc-500 tabular-nums">{fmtDate(s.date)}</span>
+      <span className={`shrink-0 border px-1.5 py-0.5 text-[9px] font-bold tracking-widest ${tagCls}`}>{tag}</span>
+      <span className="min-w-0 flex-1 truncate text-zinc-400 tabular-nums">{detail}</span>
+      {s.type !== 'park' && s.shin === 'tight' && (
+        <span className="shrink-0 text-[9px] font-bold tracking-widest text-red-400">SHIN:TIGHT</span>
+      )}
+      {s.struggled && <Flag size={11} className="shrink-0 text-amber-400" />}
+      {s.restSkips > 0 && (
+        <span className="shrink-0 text-[9px] tracking-widest text-amber-400">SKIP×{s.restSkips}</span>
+      )}
+      <button type="button" onClick={onDelete} className="shrink-0 text-zinc-700 hover:text-red-400" aria-label="delete">
+        <X size={12} />
+      </button>
+    </div>
+  )
+}
+
+// ---------- app ----------
+
+export default function App() {
+  const [data, setData] = useState(loadState)
+  const [panel, setPanel] = useState(null) // park | cardio | soccer | review
+
+  useEffect(() => {
+    localStorage.setItem(STORE_KEY, JSON.stringify(data))
+  }, [data])
+
+  const q = quotaStatus(data.sessions)
+  const parkDates = useMemo(
+    () => [
+      ...data.sessions.filter(s => s.type === 'park').map(s => s.date),
+      ...data.history.flatMap(h => h.parkDates ?? []),
+    ],
+    [data],
+  )
+  const sorted = useMemo(() => [...data.sessions].sort((a, b) => a.date.localeCompare(b.date)), [data.sessions])
+
+  const addSession = s => {
+    setData(d => ({ ...d, sessions: [...d.sessions, s] }))
+    setPanel(null)
+  }
+
+  const confirmWeek = preview => {
+    const upgrades = EXERCISES.filter(e => preview.out[e.key].status === 'upgrade')
+    setData(d => ({
+      ...d,
+      week: d.week + 1,
+      targets: Object.fromEntries(EXERCISES.map(e => [e.key, preview.out[e.key].next])),
+      sessions: [],
+      history: [
+        {
+          week: d.week,
+          q: quotaStatus(d.sessions),
+          deltas: EXERCISES.map(e => `${e.label[0]}${STATUS_SYMBOL[preview.out[e.key].status]}`).join(' '),
+          struggled: preview.struggled,
+          parkDates: d.sessions.filter(s => s.type === 'park').map(s => s.date),
+        },
+        ...d.history,
+      ].slice(0, 24),
+      alert: upgrades.length
+        ? { week: d.week, items: upgrades.map(e => ({ label: e.label, cap: e.cap, hw: e.hw, start: e.start })) }
+        : null,
+    }))
+    setPanel(null)
+  }
+
+  const reset = () => {
+    if (window.confirm('Wipe all weeks, sessions and targets?')) {
+      localStorage.removeItem(STORE_KEY)
+      setData(freshState())
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-zinc-950 font-mono text-sm text-zinc-300 antialiased">
+      <div className="mx-auto max-w-2xl space-y-3 p-3 pb-10 sm:p-4">
+        <header className="flex items-end justify-between pt-2">
+          <div>
+            <h1 className="text-lg font-bold tracking-[0.3em] text-zinc-100">
+              FLOATING<span className="text-emerald-400">//</span>QUOTA
+            </h1>
+            <p className="mt-0.5 text-[10px] tracking-[0.2em] text-zinc-600">
+              {fmtDate(todayStr())} · NO FIXED DAYS — HIT THE NUMBERS
+            </p>
+          </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-zinc-100 tabular-nums">
+              WK {String(data.week).padStart(2, '0')}
+            </div>
+            <button
+              type="button"
+              onClick={reset}
+              className="mt-0.5 flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-700 hover:text-red-400"
+            >
+              <RotateCcw size={9} /> RESET ALL
+            </button>
+          </div>
+        </header>
+
+        {data.alert && (
+          <div className="border border-red-500 bg-red-500/10 p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold tracking-[0.25em] text-red-400">
+                <TriangleAlert size={14} /> UPGRADE HARDWARE — WK {String(data.alert.week).padStart(2, '0')}
+              </div>
+              <button
+                type="button"
+                onClick={() => setData(d => ({ ...d, alert: null }))}
+                className="text-red-400/60 hover:text-red-400"
+                aria-label="dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            {data.alert.items.map(it => (
+              <p key={it.label} className="mt-1 text-[11px] leading-relaxed tracking-wide text-red-300">
+                {it.label} HIT {SETS}×{it.cap} — {it.hw}. TARGETS RESET TO {SETS}×{it.start}.
+              </p>
+            ))}
+          </div>
+        )}
+
+        <Panel
+          title="WEEKLY QUOTA — FLOATING"
+          right={
+            <span className={`text-[10px] font-bold tracking-[0.25em] ${q.met ? 'text-emerald-400' : 'text-zinc-600'}`}>
+              {q.met ? '■ QUOTA MET' : '□ OPEN'}
+            </span>
+          }
+        >
+          <div className="divide-y divide-zinc-800/60">
+            <QuotaRow
+              icon={Dumbbell}
+              label="PARK STRENGTH"
+              sub="3×/WK · NEVER BACK-TO-BACK DAYS"
+              blocks={blocksFor(q.parks, QUOTA.park)}
+              count={`${q.parks}/${QUOTA.park}`}
+              onLog={() => setPanel('park')}
+            />
+            <QuotaRow
+              icon={HeartPulse}
+              label="CARDIO RUN/SWIM"
+              sub="1–2×/WK · SHIN PROTOCOL ENFORCED"
+              blocks={blocksFor(q.cardio, QUOTA.cardioMin, QUOTA.cardioMax - QUOTA.cardioMin)}
+              count={`${q.cardio}/${QUOTA.cardioMin}–${QUOTA.cardioMax}`}
+              onLog={() => setPanel('cardio')}
+            />
+            <QuotaRow
+              icon={Trophy}
+              label="SOCCER"
+              sub="1×/WK · SATURDAY SLOT"
+              blocks={blocksFor(q.soccer, QUOTA.soccer)}
+              count={`${q.soccer}/${QUOTA.soccer}`}
+              onLog={() => setPanel('soccer')}
+            />
+          </div>
+        </Panel>
+
+        <Panel title={`STRENGTH TARGETS — WK ${String(data.week).padStart(2, '0')}`}>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {EXERCISES.map(ex => (
+              <div key={ex.key} className="border border-zinc-800 px-2 py-1.5">
+                <div className="text-[9px] tracking-[0.2em] text-zinc-600">
+                  {ex.label} <span className="text-zinc-700">{ex.unit}</span>
+                </div>
+                <div className="text-lg font-bold text-zinc-100 tabular-nums">{data.targets[ex.key].join('·')}</div>
+                {ex.cap && (
+                  <div className="text-[9px] tracking-widest text-zinc-700">
+                    HW CAP {SETS}×{ex.cap}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Panel>
+
+        <Panel title="WEEK LOG" right={<span className="text-[10px] tracking-widest text-zinc-600">{sorted.length} SESSIONS</span>}>
+          {sorted.length === 0 ? (
+            <p className="py-2 text-center text-[11px] tracking-[0.2em] text-zinc-700">
+              NO SESSIONS — WEEK FLOATS UNTIL YOU MOVE
+            </p>
+          ) : (
+            <div className="divide-y divide-zinc-800/60">
+              {sorted.map(s => (
+                <SessionLine
+                  key={s.id}
+                  s={s}
+                  onDelete={() => setData(d => ({ ...d, sessions: d.sessions.filter(x => x.id !== s.id) }))}
+                />
+              ))}
+            </div>
+          )}
+        </Panel>
+
+        <Btn kind="primary" className="w-full py-3" onClick={() => setPanel('review')}>
+          COMPLETE WEEK <ChevronRight size={14} /> RUN PROGRESSION ENGINE
+        </Btn>
+
+        {data.history.length > 0 && (
+          <Panel title="ARCHIVE" right={<span className="text-[10px] tracking-widest text-zinc-600">+ PROGRESS · = HOLD · ⟲ HW RESET</span>}>
+            <div className="space-y-1 text-[11px] tabular-nums">
+              {data.history.map(h => (
+                <div key={h.week} className="flex items-center justify-between text-zinc-500">
+                  <span>
+                    WK {String(h.week).padStart(2, '0')} ▸ P{h.q.parks}/{QUOTA.park} C{h.q.cardio} S{h.q.soccer}
+                  </span>
+                  <span className={h.q.met ? 'text-emerald-400/80' : 'text-amber-400/80'}>
+                    {h.q.met ? 'MET' : 'MISSED'}
+                  </span>
+                  <span className="tracking-widest">
+                    {h.deltas}
+                    {h.struggled ? ' ⚑' : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Panel>
+        )}
+
+        <footer className="pt-1 text-center text-[9px] leading-relaxed tracking-[0.2em] text-zinc-700">
+          48H BETWEEN PARK SESSIONS · TIGHT SHIN ⇒ SWIM ONLY · NO RUNS FRI/SUN · REST 2:00 BETWEEN SETS
+        </footer>
+      </div>
+
+      {panel === 'park' && (
+        <ParkLogger
+          targets={data.targets}
+          parkDates={parkDates}
+          parkCount={q.parks}
+          onSave={addSession}
+          onClose={() => setPanel(null)}
+        />
+      )}
+      {(panel === 'cardio' || panel === 'soccer') && (
+        <CardioLogger kind={panel} sessions={data.sessions} onSave={addSession} onClose={() => setPanel(null)} />
+      )}
+      {panel === 'review' && <WeekReview data={data} onConfirm={confirmWeek} onClose={() => setPanel(null)} />}
+    </div>
+  )
+}
