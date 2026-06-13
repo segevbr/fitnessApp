@@ -19,6 +19,7 @@ import {
   TrendingUp,
   TriangleAlert,
   Trophy,
+  Unlock,
   Waves,
   X,
 } from 'lucide-react'
@@ -39,22 +40,46 @@ import {
   uid,
 } from './engine'
 
-const STORE_KEY = 'floating-quota-v1'
+const STORE_KEY = 'floating-quota-v2'
+const LEGACY_KEY = 'floating-quota-v1'
 
 const freshState = () => ({
   week: 1,
   targets: defaultTargets(),
   sessions: [],
   history: [],
-  alert: null,
 })
+
+const isV2Targets = t =>
+  t && typeof t === 'object' && EXERCISES.every(e => Array.isArray(t[e.key]))
+
+// Bring any persisted state — from localStorage OR Supabase — onto the V2 schema.
+// A V1 save uses retired movements (rows/push-ups under the old reset model) that
+// can't be replayed onto the new vertical-pull baseline, so we adopt the V2 targets
+// while preserving the week counter and the display-only archive; stale sessions are
+// dropped (they key on exercises that no longer exist). Already-V2 state passes through.
+const migrate = raw => {
+  if (!raw || typeof raw !== 'object') return freshState()
+  if (isV2Targets(raw.targets)) return { ...freshState(), ...raw }
+  return {
+    ...freshState(),
+    week: typeof raw.week === 'number' ? raw.week : 1,
+    history: Array.isArray(raw.history) ? raw.history : [],
+  }
+}
 
 const loadState = () => {
   try {
     const raw = localStorage.getItem(STORE_KEY)
     if (raw) {
       const parsed = JSON.parse(raw)
-      if (parsed?.targets && Array.isArray(parsed.sessions)) return { ...freshState(), ...parsed }
+      if (parsed?.targets && Array.isArray(parsed.sessions)) return migrate(parsed)
+    }
+    const legacy = localStorage.getItem(LEGACY_KEY)
+    if (legacy) {
+      const migrated = migrate(JSON.parse(legacy))
+      localStorage.setItem(STORE_KEY, JSON.stringify(migrated))
+      return migrated
     }
   } catch {
     /* corrupted store falls through to fresh state */
@@ -341,9 +366,9 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 <div className="flex items-baseline justify-between">
                   <div>
                     <div className="text-[10px] tracking-[0.25em] text-zinc-500">
-                      EXERCISE {EXERCISES.findIndex(e => e.key === cur.ex.key) + 1}/4 · SET {cur.set + 1}/{SETS}
+                      {cur.ex.label} · {EXERCISES.findIndex(e => e.key === cur.ex.key) + 1}/4
                     </div>
-                    <div className="text-2xl font-bold tracking-widest text-zinc-900 dark:text-zinc-100">{cur.ex.label}</div>
+                    <div className="text-2xl font-bold tracking-widest text-zinc-900 dark:text-zinc-100">{cur.ex.short}</div>
                   </div>
                   <div className="text-right">
                     <div className="text-[10px] tracking-[0.25em] text-zinc-500">TARGET</div>
@@ -362,6 +387,11 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                       .join(' ') || 'NO SETS LOGGED'}
                   </div>
                 </div>
+                {cur.ex.note && (
+                  <p className="border-l-2 border-zinc-300 pl-2 text-[10px] leading-relaxed tracking-wide text-zinc-500 dark:border-zinc-700">
+                    {cur.ex.note}
+                  </p>
+                )}
                 <Btn kind="primary" className="w-full" onClick={logSet}>
                   <Check size={14} /> LOG SET
                   {step < steps.length - 1 && <span className="text-[10px] opacity-70">▸ STARTS 2:00 REST</span>}
@@ -385,7 +415,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 </div>
                 {next && (
                   <div className="text-[11px] tracking-widest text-zinc-600 dark:text-zinc-400">
-                    NEXT ▸ {next.ex.label} · SET {next.set + 1}/{SETS} · TARGET {targets[next.ex.key][next.set]}{' '}
+                    NEXT ▸ {next.ex.short} · SET {next.set + 1}/{SETS} · TARGET {targets[next.ex.key][next.set]}{' '}
                     {next.ex.unit}
                   </div>
                 )}
@@ -410,7 +440,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
             <div className="space-y-2">
               {EXERCISES.map(ex => (
                 <div key={ex.key} className="flex items-center justify-between gap-2">
-                  <span className="w-20 text-[11px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.label}</span>
+                  <span className="w-16 text-[10px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.short}</span>
                   <div className="flex gap-1">
                     {[0, 1, 2].map(s => (
                       <NumInput
@@ -641,9 +671,8 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
 function WeekReview({ data, onConfirm, onClose }) {
   const preview = useMemo(() => computeProgression(data.targets, data.sessions), [data])
   const q = quotaStatus(data.sessions)
-  const upgrades = EXERCISES.filter(e => preview.out[e.key].status === 'upgrade')
 
-  const statusCls = { progress: 'text-emerald-400', hold: 'text-zinc-500', upgrade: 'text-red-400' }
+  const statusCls = { progress: 'text-emerald-400', hold: 'text-zinc-500', cap: 'text-amber-400' }
 
   return (
     <Modal onClose={onClose}>
@@ -669,7 +698,7 @@ function WeekReview({ data, onConfirm, onClose }) {
             return (
               <div key={ex.key} className="border border-zinc-200 px-3 py-2 dark:border-zinc-800">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="w-20 text-[11px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.label}</span>
+                  <span className="w-16 text-[10px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.short}</span>
                   <span className="flex items-center gap-2 font-bold tabular-nums">
                     <span className="text-zinc-500">{data.targets[ex.key].join('·')}</span>
                     <ChevronRight size={12} className="text-zinc-400 dark:text-zinc-600" />
@@ -684,18 +713,9 @@ function WeekReview({ data, onConfirm, onClose }) {
           })}
         </div>
 
-        {upgrades.length > 0 && (
-          <div className="border border-red-500 bg-red-500/10 p-3">
-            <div className="flex items-center gap-2 text-xs font-bold tracking-[0.25em] text-red-400">
-              <TriangleAlert size={14} /> UPGRADE HARDWARE
-            </div>
-            {upgrades.map(ex => (
-              <p key={ex.key} className="mt-1 text-[11px] leading-relaxed tracking-wide text-red-300">
-                {ex.label} HIT {SETS}×{ex.cap} — {ex.hw}. TARGETS RESET TO {SETS}×{ex.start}.
-              </p>
-            ))}
-          </div>
-        )}
+        <div className="border border-zinc-200 px-3 py-2 text-[10px] leading-relaxed tracking-wide text-zinc-500 dark:border-zinc-800">
+          V2 ENGINE ▸ STRICT HOLD IF ANY SET MISSED · +1 TO SET 1 ONLY · SQUATS CAP 15 · PLANK CAP 60S
+        </div>
 
         <Btn kind="primary" className="w-full" onClick={() => onConfirm(preview)}>
           <Check size={14} /> ARCHIVE WEEK & APPLY TARGETS
@@ -763,7 +783,7 @@ const fmtDuration = secs => {
 function SessionLine({ s, onDelete }) {
   const detail =
     s.type === 'park'
-      ? EXERCISES.map(ex => `${ex.label[0]} ${s.sets[ex.key].join('/')}`).join(' · ')
+      ? EXERCISES.map(ex => `${ex.code} ${(s.sets[ex.key] ?? []).join('/')}`).join(' · ')
       : `${fmtDuration(s.duration)} · ${s.distance}KM · ${s.avgHr || '—'}BPM`
   const tag =
     s.type === 'park' ? 'PARK' : s.type === 'soccer' ? 'SOCCER' : s.mode === 'swim' ? 'SWIM' : 'RUN'
@@ -846,7 +866,7 @@ export default function App() {
       .eq('user_id', user.id)
       .maybeSingle()
       .then(({ data: row }) => {
-        if (row?.state) setData({ ...freshState(), ...row.state })
+        if (row?.state) setData(migrate(row.state))
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
@@ -884,7 +904,6 @@ export default function App() {
   }
 
   const confirmWeek = preview => {
-    const upgrades = EXERCISES.filter(e => preview.out[e.key].status === 'upgrade')
     setData(d => ({
       ...d,
       week: d.week + 1,
@@ -894,15 +913,12 @@ export default function App() {
         {
           week: d.week,
           q: quotaStatus(d.sessions),
-          deltas: EXERCISES.map(e => `${e.label[0]}${STATUS_SYMBOL[preview.out[e.key].status]}`).join(' '),
+          deltas: EXERCISES.map(e => `${e.code}${STATUS_SYMBOL[preview.out[e.key].status]}`).join(' '),
           struggled: preview.struggled,
           parkDates: d.sessions.filter(s => s.type === 'park').map(s => s.date),
         },
         ...d.history,
       ].slice(0, 24),
-      alert: upgrades.length
-        ? { week: d.week, items: upgrades.map(e => ({ label: e.label, cap: e.cap, hw: e.hw, start: e.start })) }
-        : null,
     }))
     setPanel(null)
   }
@@ -978,28 +994,12 @@ export default function App() {
           </div>
         </header>
 
-        {data.alert && (
-          <div className="border border-red-500 bg-red-500/10 p-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold tracking-[0.25em] text-red-400">
-                <TriangleAlert size={14} /> UPGRADE HARDWARE — WK {String(data.alert.week).padStart(2, '0')}
-              </div>
-              <button
-                type="button"
-                onClick={() => setData(d => ({ ...d, alert: null }))}
-                className="text-red-400/60 hover:text-red-400"
-                aria-label="dismiss"
-              >
-                <X size={14} />
-              </button>
-            </div>
-            {data.alert.items.map(it => (
-              <p key={it.label} className="mt-1 text-[11px] leading-relaxed tracking-wide text-red-300">
-                {it.label} HIT {SETS}×{it.cap} — {it.hw}. TARGETS RESET TO {SETS}×{it.start}.
-              </p>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-2 border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold tracking-[0.25em] text-emerald-600 dark:bg-emerald-400/5 dark:text-emerald-400">
+          <Unlock size={12} className="shrink-0" /> V2 · PULL-UP NODE UNLOCKED
+          <span className="ml-auto font-normal tracking-widest text-emerald-600/50 dark:text-emerald-400/50">
+            VERTICAL PULL ONLINE
+          </span>
+        </div>
 
         <Panel
           title="WEEKLY QUOTA — FLOATING"
@@ -1041,14 +1041,19 @@ export default function App() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {EXERCISES.map(ex => (
               <div key={ex.key} className="border border-zinc-200 px-2 py-1.5 dark:border-zinc-800">
-                <div className="text-[9px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
+                <div className="text-[9px] leading-tight tracking-[0.15em] text-zinc-500">
                   {ex.label} <span className="text-zinc-300 dark:text-zinc-700">{ex.unit}</span>
                 </div>
-                <div className="text-lg font-bold text-zinc-900 tabular-nums dark:text-zinc-100">{data.targets[ex.key].join('·')}</div>
-                {ex.cap && (
-                  <div className="text-[9px] tracking-widest text-zinc-300 dark:text-zinc-700">
-                    HW CAP {SETS}×{ex.cap}
+                <div className="mt-0.5 text-lg font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
+                  {data.targets[ex.key].join('·')}
+                </div>
+                {ex.cap != null ? (
+                  <div className="text-[9px] tracking-widest text-amber-500/80 dark:text-amber-500/70">
+                    CEILING {ex.cap}
+                    {ex.unit === 'SEC' ? 'S' : ''}
                   </div>
+                ) : (
+                  <div className="text-[9px] tracking-widest text-zinc-300 dark:text-zinc-700">UNCAPPED</div>
                 )}
               </div>
             ))}
@@ -1083,7 +1088,7 @@ export default function App() {
         {data.history.length > 0 && (
           <Panel
             title="ARCHIVE"
-            right={<span className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">+ PROGRESS · = HOLD · ⟲ HW RESET</span>}
+            right={<span className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">+ PROGRESS · = HOLD · ■ CAP</span>}
           >
             <div className="space-y-1 text-[11px] tabular-nums">
               {data.history.map(h => (
@@ -1105,7 +1110,7 @@ export default function App() {
         )}
 
         <footer className="pt-1 text-center text-[9px] leading-relaxed tracking-[0.2em] text-zinc-300 dark:text-zinc-700">
-          48H BETWEEN PARK SESSIONS · TIGHT SHIN ⇒ SWIM ONLY · NO RUNS FRI/SUN · REST 2:00 BETWEEN SETS
+          48H BETWEEN PARK SESSIONS · SQUATS/PLANK CAPPED · TIGHT SHIN ⇒ SWIM ONLY · NO RUNS FRI/SUN · REST 2:00
         </footer>
       </div>
 

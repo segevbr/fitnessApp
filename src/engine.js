@@ -1,17 +1,24 @@
 // Pure rules engine for the Floating Quota system. No React in here —
 // everything is testable with plain function calls.
+//
+// V2 calibration: vertical-pull node unlocked, volume rebalanced, and hard
+// structural ceilings introduced (squats / plank) to protect the Saturday
+// soccer leg budget. The V1 "hardware upgrade / reset to 3x5" mechanic is
+// retired — caps are now ceilings the targets hold at, not reset triggers.
 
 export const SETS = 3
 export const REST_SECONDS = 120
 
 export const EXERCISES = [
-  { key: 'rows',    label: 'ROWS',     unit: 'REPS', start: 5,  inc: 1, cap: 10,   hw: 'LOWER THE BAR' },
-  { key: 'pushups', label: 'PUSH-UPS', unit: 'REPS', start: 5,  inc: 1, cap: 15,   hw: 'LOWER THE BAR/BENCH' },
-  { key: 'squats',  label: 'SQUATS',   unit: 'REPS', start: 5,  inc: 1, cap: 15,   hw: 'LOWER THE BAR/BENCH' },
-  { key: 'core',    label: 'CORE',     unit: 'SEC',  start: 30, inc: 5, cap: null, hw: null },
+  { key: 'pull', label: 'NEGATIVE PULL-UPS', short: 'PULL-UPS', code: 'PUL', unit: 'REPS', start: 5,  inc: 1, cap: null, note: null },
+  { key: 'push', label: 'INCLINE PUSH-UPS',  short: 'PUSH-UPS', code: 'PSH', unit: 'REPS', start: 12, inc: 1, cap: null, note: null },
+  { key: 'legs', label: 'BODYWEIGHT SQUATS', short: 'SQUATS',   code: 'SQT', unit: 'REPS', start: 15, inc: 1, cap: 15,   note: 'Strictly capped at 15 to protect pitch budget.' },
+  { key: 'core', label: 'PLANK',             short: 'PLANK',    code: 'PLK', unit: 'SEC',  start: 60, inc: 5, cap: 60,   note: null },
 ]
 
 export const QUOTA = { park: 3, cardioMin: 1, cardioMax: 2, soccer: 1 }
+
+export const capLabel = ex => (ex.cap == null ? null : `${ex.cap}${ex.unit === 'SEC' ? 'S' : ''}`)
 
 export const defaultTargets = () =>
   Object.fromEntries(EXERCISES.map(e => [e.key, Array(SETS).fill(e.start)]))
@@ -68,14 +75,14 @@ export function quotaStatus(sessions) {
   }
 }
 
-// ---------- progression engine ----------
+// ---------- progression engine (V2) ----------
 
-// Micro-loading ladder: each successful week adds one increment to the first
-// (leftmost) set still sitting at the lowest target, so 3x5 climbs
-// [6,5,5] -> [6,6,5] -> [6,6,6] -> [7,6,6] ... until every set reaches the
-// hardware cap (3x10 rows, 3x15 push-ups/squats) and the reset fires.
-export const nextSlot = targets => targets.indexOf(Math.min(...targets))
-
+// Per exercise, looking at every logged park set this week:
+//   - struggled flag / no parks / park quota not met  -> HOLD (targets unchanged)
+//   - STRICT HOLD: if ANY logged set is below its positional target, the whole
+//     exercise holds — no micro-progression
+//   - otherwise MICRO-LOAD: +inc to the FIRST SET ONLY, unless a hard ceiling
+//     blocks it (squats cap 15, plank cap 60s), in which case it holds at cap.
 export function computeProgression(targets, sessions) {
   const parks = sessions.filter(s => s.type === 'park')
   const struggled = parks.some(s => s.struggled)
@@ -86,7 +93,7 @@ export function computeProgression(targets, sessions) {
     const mk = (status, reason, next = [...t]) => ({ status, reason, next })
 
     if (struggled) {
-      out[ex.key] = mk('hold', 'STRUGGLED FLAG SET — HOLD')
+      out[ex.key] = mk('hold', 'STRUGGLED FLAG — HOLD')
       continue
     }
     if (parks.length === 0) {
@@ -99,25 +106,20 @@ export function computeProgression(targets, sessions) {
     }
     const missed = parks.some(s => (s.sets?.[ex.key] ?? []).some((v, i) => v < t[i]))
     if (missed) {
-      out[ex.key] = mk('hold', 'TARGET REPS MISSED')
+      out[ex.key] = mk('hold', 'SET BELOW TARGET — STRICT HOLD')
       continue
     }
-
-    const next = [...t]
-    const slot = nextSlot(next)
-    next[slot] += ex.inc
-    if (ex.cap && next.every(v => v >= ex.cap)) {
-      out[ex.key] = mk(
-        'upgrade',
-        `HIT ${SETS}×${ex.cap} — ${ex.hw}. RESET TO ${SETS}×${ex.start}.`,
-        Array(SETS).fill(ex.start),
-      )
-    } else {
-      out[ex.key] = mk('progress', `+${ex.inc} ${ex.unit} → SET ${slot + 1}`, next)
+    // All logged sets met or exceeded target.
+    if (ex.cap != null && t[0] + ex.inc > ex.cap) {
+      out[ex.key] = mk('cap', `CEILING ${capLabel(ex)} — BUDGET LOCK`)
+      continue
     }
+    const next = [...t]
+    next[0] += ex.inc
+    out[ex.key] = mk('progress', `+${ex.inc} ${ex.unit} → SET 1`, next)
   }
 
   return { out, struggled, parkCount: parks.length }
 }
 
-export const STATUS_SYMBOL = { progress: '+', hold: '=', upgrade: '⟲' }
+export const STATUS_SYMBOL = { progress: '+', hold: '=', cap: '■' }
