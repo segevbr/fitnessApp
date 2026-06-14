@@ -26,7 +26,7 @@ export default function Auth({ dark, setDark }) {
         <div className="flex items-end justify-between">
           <div>
             <h1 className="text-lg font-bold tracking-[0.3em] text-zinc-900 dark:text-zinc-100">
-              FLOATING<span className="text-emerald-400">//</span>QUOTA
+              WORKOUT <span className="text-emerald-400">TRACKER</span>
             </h1>
             <p className="mt-0.5 text-[10px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
               PRIVATE — SIGN IN TO CONTINUE

@@ -1,8 +1,17 @@
-# FLOATING//QUOTA
+# Workout Tracker
 
-Minimalist single-page fitness tracker built on a **floating weekly quota** instead of a
-day-by-day calendar. Monospace, data-dense, dark/light. React + Vite + Tailwind CSS v4 +
-Lucide icons, with Supabase email auth and cross-device sync.
+Minimalist single-page workout tracker built on a **floating weekly quota** instead of a
+day-by-day calendar. Monospace, data-dense, dark/light, installable as a phone app. React +
+Vite + Tailwind CSS v4 + Lucide icons, with Supabase email auth and cross-device sync.
+
+### Activity heatmap
+
+A GitHub-style contribution grid (last 53 weeks) sits on the dashboard. Each day is colored:
+**green** for a workout (brighter with more sessions that day), **amber** for a day flagged
+*struggled*, **blue** for a rest day (the default for any past day with no workout — resting
+is allowed in a floating quota), and **red** for a *missed* day. Tap any rest day to flag it
+missed. Worked-out days fill in automatically and persist across week rollovers via a daily
+log (the per-week `sessions` list is cleared on rollover; the heatmap log is not).
 
 **V2 calibration** — vertical-pull node unlocked, volume rebalanced, and hard structural
 ceilings introduced to protect the Saturday soccer leg budget. State persisted under one

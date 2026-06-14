@@ -123,3 +123,65 @@ export function computeProgression(targets, sessions) {
 }
 
 export const STATUS_SYMBOL = { progress: '+', hold: '=', cap: '■' }
+
+// ---------- activity heatmap (github-style) ----------
+
+export const HEAT_WEEKS = 53
+
+export const addDays = (date, n) => {
+  const d = atNoon(date)
+  d.setDate(d.getDate() + n)
+  const p = x => String(x).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+// Merge every "I worked out" source into one date -> {n, struggled} map: the
+// persistent daily log (past weeks, already folded), legacy park dates from
+// history (older saves predating the log), and the current week's live sessions.
+export function buildHeat(data) {
+  const heat = {}
+  const bump = (date, n, struggled) => {
+    const e = heat[date] || { n: 0, struggled: false }
+    heat[date] = { n: e.n + n, struggled: e.struggled || struggled }
+  }
+  for (const [date, e] of Object.entries(data.log || {})) bump(date, e.n || 0, !!e.struggled)
+  for (const h of data.history || [])
+    for (const date of h.parkDates || []) if (!data.log?.[date]) bump(date, 1, false)
+  for (const s of data.sessions || []) bump(s.date, 1, !!s.struggled)
+  return heat
+}
+
+// 53 columns (weeks) × 7 rows (Sun..Sat) ending with the current week.
+export function heatColumns(today) {
+  const start = addDays(today, -weekdayOf(today) - (HEAT_WEEKS - 1) * 7)
+  const cols = []
+  for (let w = 0; w < HEAT_WEEKS; w++) {
+    const days = []
+    for (let r = 0; r < 7; r++) days.push(addDays(start, w * 7 + r))
+    cols.push(days)
+  }
+  return cols
+}
+
+// worked-out day -> green level by session count; else a manual missed mark;
+// else (past/today with no workout) a rest day; future days render empty.
+export function heatStatus(date, heat, days, today) {
+  if (date > today) return 'future'
+  const h = heat[date]
+  if (h?.n > 0) return h.struggled ? 'struggled' : h.n >= 3 ? 'w3' : h.n === 2 ? 'w2' : 'w1'
+  if (days[date] === 'missed') return 'missed'
+  return 'rest'
+}
+
+export function heatStats(heat, days, today) {
+  const start = addDays(today, -weekdayOf(today) - (HEAT_WEEKS - 1) * 7)
+  let worked = 0
+  let missed = 0
+  for (let i = 0; i < HEAT_WEEKS * 7; i++) {
+    const date = addDays(start, i)
+    if (date > today) break
+    if (heat[date]?.n > 0) worked++
+    else if (days[date] === 'missed') missed++
+  }
+  return { worked, missed }
+}

@@ -1,7 +1,7 @@
 {
-  "name": "FLOATING//QUOTA",
-  "short_name": "QUOTA",
-  "description": "Floating-quota fitness tracker — strength, cardio, soccer.",
+  "name": "Workout Tracker",
+  "short_name": "Workout",
+  "description": "Workout tracker — strength, cardio, soccer, with an activity heatmap.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

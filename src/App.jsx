@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Auth from './Auth'
 import { supabase } from './supabase'
 import {
@@ -29,11 +29,15 @@ import {
   REST_SECONDS,
   SETS,
   STATUS_SYMBOL,
+  buildHeat,
   computeProgression,
   consecutiveParkWarning,
   dayName,
   defaultTargets,
   fmtDate,
+  heatColumns,
+  heatStats,
+  heatStatus,
   quotaStatus,
   runDayWarning,
   todayStr,
@@ -48,6 +52,11 @@ const freshState = () => ({
   targets: defaultTargets(),
   sessions: [],
   history: [],
+  // Persistent daily workout log for the activity heatmap. Survives week
+  // rollovers (sessions[] is cleared each week, this is not). date -> {n, struggled}.
+  log: {},
+  // Manual "missed" marks the user taps on the heatmap. date -> 'missed'.
+  days: {},
 })
 
 const isV2Targets = t =>
@@ -818,6 +827,119 @@ function SessionLine({ s, onDelete }) {
   )
 }
 
+// ---------- activity heatmap (github-style) ----------
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+const HEAT_CELL = {
+  future: 'bg-zinc-100 dark:bg-zinc-800/40',
+  rest: 'bg-sky-100 dark:bg-sky-900',
+  missed: 'bg-red-500 dark:bg-red-600',
+  struggled: 'bg-amber-400 dark:bg-amber-500',
+  w1: 'bg-emerald-400 dark:bg-emerald-700',
+  w2: 'bg-emerald-500 dark:bg-emerald-500',
+  w3: 'bg-emerald-600 dark:bg-emerald-400',
+}
+
+const HEAT_LABEL = {
+  future: '',
+  rest: 'rest day',
+  missed: 'MISSED',
+  struggled: 'worked out · struggled',
+  w1: '1 workout',
+  w2: '2 workouts',
+  w3: '3+ workouts',
+}
+
+function HeatSwatch({ status, label }) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className={`h-[10px] w-[10px] rounded-[2px] ${HEAT_CELL[status]}`} />
+      {label}
+    </span>
+  )
+}
+
+function Heatmap({ heat, days, today, onToggle }) {
+  const cols = useMemo(() => heatColumns(today), [today])
+  const scroller = useRef(null)
+  // open scrolled to the most recent week, like GitHub
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollLeft = scroller.current.scrollWidth
+  }, [])
+
+  return (
+    <div>
+      <div ref={scroller} className="overflow-x-auto pb-1">
+        <div className="inline-block">
+          <div className="mb-1 flex gap-[3px] pl-7">
+            {cols.map((col, w) => {
+              const m = Number(col[0].slice(5, 7)) - 1
+              const prevM = w > 0 ? Number(cols[w - 1][0].slice(5, 7)) - 1 : -1
+              return (
+                <div key={col[0]} className="relative w-[11px]">
+                  {m !== prevM && (
+                    <span className="absolute left-0 whitespace-nowrap text-[9px] tracking-wide text-zinc-400 dark:text-zinc-500">
+                      {MONTHS[m]}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex gap-[3px]">
+            <div className="mr-1 flex w-6 flex-col gap-[3px] text-[8px] leading-[11px] text-zinc-400 dark:text-zinc-500">
+              {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((d, r) => (
+                <span key={r} className="h-[11px]">
+                  {d}
+                </span>
+              ))}
+            </div>
+            {cols.map(col => (
+              <div key={col[0]} className="flex flex-col gap-[3px]">
+                {col.map(date => {
+                  const status = heatStatus(date, heat, days, today)
+                  const clickable = status === 'rest' || status === 'missed'
+                  const isToday = date === today
+                  return (
+                    <button
+                      key={date}
+                      type="button"
+                      disabled={!clickable}
+                      onClick={() => clickable && onToggle(date)}
+                      title={status === 'future' ? fmtDate(date) : `${fmtDate(date)} — ${HEAT_LABEL[status]}`}
+                      className={`h-[11px] w-[11px] rounded-[2px] ${HEAT_CELL[status]} ${
+                        isToday ? 'ring-1 ring-zinc-900 dark:ring-zinc-100' : ''
+                      } ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
+                    />
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[9px] tracking-widest text-zinc-400 dark:text-zinc-500">
+        <div className="flex items-center gap-3">
+          <HeatSwatch status="rest" label="REST" />
+          <HeatSwatch status="missed" label="MISSED" />
+          <HeatSwatch status="struggled" label="STRUGGLED" />
+        </div>
+        <div className="flex items-center gap-1">
+          LESS
+          <span className={`h-[11px] w-[11px] rounded-[2px] ${HEAT_CELL.w1}`} />
+          <span className={`h-[11px] w-[11px] rounded-[2px] ${HEAT_CELL.w2}`} />
+          <span className={`h-[11px] w-[11px] rounded-[2px] ${HEAT_CELL.w3}`} />
+          MORE
+        </div>
+      </div>
+      <p className="mt-1 text-[9px] tracking-widest text-zinc-300 dark:text-zinc-600">
+        TAP A REST DAY TO FLAG IT MISSED
+      </p>
+    </div>
+  )
+}
+
 // ---------- app ----------
 
 function LoadingScreen() {
@@ -902,17 +1024,37 @@ export default function App() {
   )
   const sorted = useMemo(() => [...data.sessions].sort((a, b) => a.date.localeCompare(b.date)), [data.sessions])
 
+  const today = todayStr()
+  const heat = useMemo(() => buildHeat(data), [data])
+  const activity = useMemo(() => heatStats(heat, data.days || {}, today), [heat, data.days, today])
+  const toggleMissed = date =>
+    setData(d => {
+      const days = { ...(d.days || {}) }
+      if (days[date] === 'missed') delete days[date]
+      else days[date] = 'missed'
+      return { ...d, days }
+    })
+
   const addSession = s => {
     setData(d => ({ ...d, sessions: [...d.sessions, s] }))
     setPanel(null)
   }
 
   const confirmWeek = preview => {
-    setData(d => ({
+    setData(d => {
+      // fold the finished week's sessions into the persistent daily log before
+      // sessions[] is cleared, so the activity heatmap keeps them forever
+      const log = { ...d.log }
+      for (const s of d.sessions) {
+        const e = log[s.date] || { n: 0, struggled: false }
+        log[s.date] = { n: e.n + 1, struggled: e.struggled || !!s.struggled }
+      }
+      return {
       ...d,
       week: d.week + 1,
       targets: Object.fromEntries(EXERCISES.map(e => [e.key, preview.out[e.key].next])),
       sessions: [],
+      log,
       history: [
         {
           week: d.week,
@@ -923,7 +1065,8 @@ export default function App() {
         },
         ...d.history,
       ].slice(0, 24),
-    }))
+      }
+    })
     setPanel(null)
   }
 
@@ -950,7 +1093,7 @@ export default function App() {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h1 className="text-base font-bold tracking-[0.2em] text-zinc-900 dark:text-zinc-100 sm:text-lg sm:tracking-[0.3em]">
-                FLOATING<span className="text-emerald-400">//</span>QUOTA
+                WORKOUT <span className="text-emerald-400">TRACKER</span>
               </h1>
               <p className="mt-0.5 truncate text-[10px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
                 {fmtDate(todayStr())} · NO FIXED DAYS — HIT THE NUMBERS
@@ -1062,6 +1205,17 @@ export default function App() {
               </div>
             ))}
           </div>
+        </Panel>
+
+        <Panel
+          title="ACTIVITY — LAST YEAR"
+          right={
+            <span className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">
+              {activity.worked} WORKOUTS{activity.missed > 0 ? ` · ${activity.missed} MISSED` : ''}
+            </span>
+          }
+        >
+          <Heatmap heat={heat} days={data.days || {}} today={today} onToggle={toggleMissed} />
         </Panel>
 
         <Panel
