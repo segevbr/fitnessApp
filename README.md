@@ -36,6 +36,25 @@ npm run build                # production bundle in dist/
 table is `user_data (user_id uuid pk, state jsonb, updated_at timestamptz)`. State writes
 to localStorage immediately and upserts to Supabase on a 1.2 s debounce.
 
+## Deploy (Vercel + custom subdomain)
+
+`vercel.json` already targets the Vite build. To serve the app from, say,
+`app.yourdomain.com` (substitute your own subdomain):
+
+1. **Vercel env vars** — Project → Settings → Environment Variables, add
+   `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for **Production** (the build
+   throws without them), then redeploy.
+2. **Vercel domain** — Project → Settings → Domains → add `app.yourdomain.com`.
+   Vercel shows a target host (a `cname.vercel-dns.com`-style value).
+3. **GoDaddy DNS** — Domain → Manage DNS → add a record:
+   `Type: CNAME` · `Name: app` (the prefix only) · `Value:` the host Vercel gave ·
+   `TTL: 1 hour`. Save. Use a real CNAME, not GoDaddy "Forwarding".
+4. Wait for DNS to propagate (minutes–1 h); Vercel auto-issues the HTTPS cert once it
+   sees the record.
+5. **Supabase auth URLs** — Supabase → Authentication → URL Configuration: set
+   **Site URL** to `https://app.yourdomain.com` and add `https://app.yourdomain.com/**`
+   to the redirect allow-list, so email/confirmation links resolve to the new domain.
+
 ## The system
 
 ### 1. Floating quota (dashboard)
