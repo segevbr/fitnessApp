@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#09090b"/>
+  <rect x="96" y="208" width="64" height="96" fill="#34d399"/>
+  <rect x="192" y="232" width="128" height="48" fill="#e4e4e7"/>
+  <rect x="352" y="208" width="64" height="96" fill="#34d399"/>
+  <rect x="232" y="312" width="48" height="20" fill="#34d399"/>
+  <text x="256" y="392" font-family="ui-monospace, monospace" font-size="40" font-weight="700" letter-spacing="6" text-anchor="middle" fill="#71717a">QUOTA</text>
+</svg>

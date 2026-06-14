@@ -158,32 +158,30 @@ function WarnBox({ children, tone = 'amber' }) {
   )
 }
 
-function NumInput({ value, onChange, step = 1, wide = false }) {
+function NumInput({ value, onChange, step = 1, wide = false, grow = false }) {
   const bump = d => onChange(Math.max(0, (Number(value) || 0) + d))
+  const btn =
+    'px-3 py-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 active:bg-zinc-200 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 dark:active:bg-zinc-700'
   return (
-    <div className="inline-flex items-stretch border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950">
-      <button
-        type="button"
-        onClick={() => bump(-step)}
-        className="px-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        aria-label="decrease"
-      >
-        <Minus size={12} />
+    <div
+      className={`items-stretch border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950 ${
+        grow ? 'flex flex-1' : 'inline-flex'
+      }`}
+    >
+      <button type="button" onClick={() => bump(-step)} className={btn} aria-label="decrease">
+        <Minus size={13} />
       </button>
       <input
         type="number"
         min="0"
         value={value}
         onChange={e => onChange(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
-        className={`${wide ? 'w-20 py-2 text-2xl' : 'w-12 py-1 text-sm'} bg-transparent text-center font-bold text-zinc-900 tabular-nums outline-none dark:text-zinc-100`}
+        className={`${
+          wide ? 'w-20 py-2 text-2xl' : grow ? 'w-full min-w-0 py-1.5 text-base' : 'w-12 py-1 text-sm'
+        } bg-transparent text-center font-bold text-zinc-900 tabular-nums outline-none dark:text-zinc-100`}
       />
-      <button
-        type="button"
-        onClick={() => bump(step)}
-        className="px-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        aria-label="increase"
-      >
-        <Plus size={12} />
+      <button type="button" onClick={() => bump(step)} className={btn} aria-label="increase">
+        <Plus size={13} />
       </button>
     </div>
   )
@@ -437,14 +435,23 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
         {phase === 'review' && (
           <>
             <div className="text-[10px] tracking-[0.25em] text-zinc-500">REVIEW ▸ {fmtDate(date)}</div>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {EXERCISES.map(ex => (
-                <div key={ex.key} className="flex items-center justify-between gap-2">
-                  <span className="w-16 text-[10px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.short}</span>
-                  <div className="flex gap-1">
+                <div
+                  key={ex.key}
+                  className="space-y-1.5 border-b border-zinc-200/70 pb-2.5 last:border-b-0 last:pb-0 dark:border-zinc-800/70"
+                >
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[11px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.short}</span>
+                    <span className="text-[10px] tracking-widest text-zinc-400 tabular-nums dark:text-zinc-600">
+                      TARGET {targets[ex.key].join('·')}
+                    </span>
+                  </div>
+                  <div className="flex gap-1.5">
                     {[0, 1, 2].map(s => (
                       <NumInput
                         key={s}
+                        grow
                         step={ex.inc}
                         value={values[ex.key][s] ?? 0}
                         onChange={v =>
@@ -457,9 +464,6 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                       />
                     ))}
                   </div>
-                  <span className="w-16 text-right text-[10px] text-zinc-400 tabular-nums dark:text-zinc-600">
-                    T {targets[ex.key].join('·')}
-                  </span>
                 </div>
               ))}
             </div>
@@ -732,13 +736,13 @@ function WeekReview({ data, onConfirm, onClose }) {
 
 function QuotaRow({ icon: Icon, label, sub, blocks, count, onLog }) {
   return (
-    <div className="flex items-center gap-3 py-1.5">
+    <div className="flex items-center gap-2.5 py-1.5">
       <Icon size={15} className="shrink-0 text-zinc-500" />
       <div className="min-w-0 flex-1">
-        <div className="text-xs font-bold tracking-[0.2em] text-zinc-800 dark:text-zinc-200">{label}</div>
-        <div className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">{sub}</div>
+        <div className="truncate text-xs font-bold tracking-[0.2em] text-zinc-800 dark:text-zinc-200">{label}</div>
+        <div className="truncate text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">{sub}</div>
       </div>
-      <div className="flex gap-1">
+      <div className="flex shrink-0 gap-1">
         {blocks.map((b, i) => (
           <span
             key={i}
@@ -754,11 +758,11 @@ function QuotaRow({ icon: Icon, label, sub, blocks, count, onLog }) {
           />
         ))}
       </div>
-      <span className="w-12 text-right text-xs font-bold text-zinc-700 tabular-nums dark:text-zinc-300">{count}</span>
+      <span className="w-11 shrink-0 text-right text-xs font-bold text-zinc-700 tabular-nums dark:text-zinc-300">{count}</span>
       <button
         type="button"
         onClick={onLog}
-        className="flex items-center gap-1 border border-zinc-300 px-2 py-1 text-[10px] font-bold tracking-widest text-zinc-700 hover:border-emerald-400 hover:text-emerald-400 dark:border-zinc-700 dark:text-zinc-300"
+        className="flex shrink-0 items-center gap-1 border border-zinc-300 px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-zinc-700 hover:border-emerald-400 hover:text-emerald-400 active:bg-emerald-400/10 dark:border-zinc-700 dark:text-zinc-300"
       >
         <Plus size={11} /> LOG
       </button>
@@ -942,61 +946,61 @@ export default function App() {
   return (
     <div className="min-h-screen bg-zinc-50 font-mono text-sm text-zinc-700 antialiased dark:bg-zinc-950 dark:text-zinc-300">
       <div className="mx-auto max-w-2xl space-y-3 p-3 pb-10 sm:p-4">
-        <header className="flex items-end justify-between pt-2">
-          <div>
-            <h1 className="text-lg font-bold tracking-[0.3em] text-zinc-900 dark:text-zinc-100">
-              FLOATING<span className="text-emerald-400">//</span>QUOTA
-            </h1>
-            <p className="mt-0.5 text-[10px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
-              {fmtDate(todayStr())} · NO FIXED DAYS — HIT THE NUMBERS
-            </p>
-          </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
+        <header className="space-y-2 pt-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-base font-bold tracking-[0.2em] text-zinc-900 dark:text-zinc-100 sm:text-lg sm:tracking-[0.3em]">
+                FLOATING<span className="text-emerald-400">//</span>QUOTA
+              </h1>
+              <p className="mt-0.5 truncate text-[10px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
+                {fmtDate(todayStr())} · NO FIXED DAYS — HIT THE NUMBERS
+              </p>
+            </div>
+            <div className="shrink-0 text-2xl font-bold leading-none text-zinc-900 tabular-nums dark:text-zinc-100">
               WK {String(data.week).padStart(2, '0')}
             </div>
-            <div className="mt-0.5 flex items-center justify-end gap-3">
-              <span
-                className={`text-[9px] tracking-widest ${
-                  syncStatus === 'error'
-                    ? 'text-red-400'
-                    : syncStatus === 'syncing'
-                      ? 'animate-pulse text-amber-400'
-                      : 'text-emerald-400/50'
-                }`}
-              >
-                {syncStatus === 'error' ? '● ERR' : syncStatus === 'syncing' ? '● SYNC' : '●'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setDark(d => !d)}
-                className="flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
-                aria-label="toggle theme"
-              >
-                {dark ? <Sun size={10} /> : <Moon size={10} />}
-                {dark ? 'LIGHT' : 'DARK'}
-              </button>
-              <button
-                type="button"
-                onClick={signOut}
-                className="flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
-              >
-                SIGN OUT
-              </button>
-              <button
-                type="button"
-                onClick={reset}
-                className="flex items-center gap-1 text-[9px] tracking-[0.25em] text-zinc-300 hover:text-red-400 dark:text-zinc-700"
-              >
-                <RotateCcw size={9} /> RESET
-              </button>
-            </div>
+          </div>
+          <div className="flex items-center justify-end gap-5">
+            <span
+              className={`text-[9px] tracking-widest ${
+                syncStatus === 'error'
+                  ? 'text-red-400'
+                  : syncStatus === 'syncing'
+                    ? 'animate-pulse text-amber-400'
+                    : 'text-emerald-400/50'
+              }`}
+            >
+              {syncStatus === 'error' ? '● ERR' : syncStatus === 'syncing' ? '● SYNC' : '●'}
+            </span>
+            <button
+              type="button"
+              onClick={() => setDark(d => !d)}
+              className="flex items-center gap-1 py-0.5 text-[9px] tracking-[0.25em] text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+              aria-label="toggle theme"
+            >
+              {dark ? <Sun size={11} /> : <Moon size={11} />}
+              {dark ? 'LIGHT' : 'DARK'}
+            </button>
+            <button
+              type="button"
+              onClick={signOut}
+              className="py-0.5 text-[9px] tracking-[0.25em] text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+            >
+              SIGN OUT
+            </button>
+            <button
+              type="button"
+              onClick={reset}
+              className="flex items-center gap-1 py-0.5 text-[9px] tracking-[0.25em] text-zinc-300 hover:text-red-400 dark:text-zinc-700"
+            >
+              <RotateCcw size={10} /> RESET
+            </button>
           </div>
         </header>
 
         <div className="flex items-center gap-2 border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold tracking-[0.25em] text-emerald-600 dark:bg-emerald-400/5 dark:text-emerald-400">
           <Unlock size={12} className="shrink-0" /> V2 · PULL-UP NODE UNLOCKED
-          <span className="ml-auto font-normal tracking-widest text-emerald-600/50 dark:text-emerald-400/50">
+          <span className="ml-auto hidden font-normal tracking-widest text-emerald-600/50 sm:inline dark:text-emerald-400/50">
             VERTICAL PULL ONLINE
           </span>
         </div>

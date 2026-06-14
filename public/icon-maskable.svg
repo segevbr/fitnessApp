@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#09090b"/>
+  <!-- logo kept within the central 80% maskable safe zone -->
+  <rect x="150" y="232" width="52" height="80" fill="#34d399"/>
+  <rect x="222" y="252" width="68" height="40" fill="#e4e4e7"/>
+  <rect x="310" y="232" width="52" height="80" fill="#34d399"/>
+</svg>
