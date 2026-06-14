@@ -124,44 +124,53 @@ const clampInt = v => Math.max(0, Math.round(Number(v) || 0))
 
 // ---------- shared atoms ----------
 
-// Zinc scale is symmetric around 500: dark uses N, light uses (1000-N).
-// BTN.primary inverts (light bg/dark text ↔ dark bg/light text).
 const BTN = {
-  primary:
-    'border border-zinc-900 bg-zinc-900 text-zinc-50 hover:bg-transparent hover:text-zinc-900 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:text-zinc-100 transition-colors',
+  primary: 'bg-[var(--btn-primary-bg)] text-[var(--btn-primary-fg)] shadow-[var(--shadow)] hover:brightness-110',
+  accent: 'bg-[var(--accent)] text-[var(--on-accent)] hover:brightness-105',
   ghost:
-    'border border-zinc-300 text-zinc-600 hover:border-zinc-700 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:border-zinc-300 dark:hover:text-zinc-100 transition-colors',
-  warn: 'border border-amber-400 bg-amber-400 text-zinc-950 hover:bg-transparent hover:text-amber-400 transition-colors',
+    'border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)]',
+  warn: 'text-white hover:brightness-105',
 }
 
-function Btn({ kind = 'ghost', className = '', ...props }) {
+function Btn({ kind = 'ghost', className = '', style, ...props }) {
+  const warnStyle = kind === 'warn' ? { background: 'var(--warn)', ...style } : style
   return (
     <button
       type="button"
-      className={`flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold tracking-[0.2em] uppercase disabled:cursor-not-allowed disabled:opacity-30 ${BTN[kind]} ${className}`}
+      style={warnStyle}
+      className={`flex items-center justify-center gap-2 rounded-[var(--btn-radius)] px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${BTN[kind]} ${className}`}
       {...props}
     />
   )
 }
 
-function Panel({ title, right, children }) {
+function Panel({ title, sub, right, children, flush = false }) {
   return (
-    <section className="border border-zinc-200 bg-zinc-100/50 dark:border-zinc-800 dark:bg-zinc-900/30">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-3 py-1.5 dark:border-zinc-800">
-        <h2 className="text-[10px] tracking-[0.3em] text-zinc-500">{title}</h2>
+    <section className="mb-4 overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
+      <header className="flex items-center justify-between gap-3 px-[var(--pad)] py-3.5">
+        <div className="flex min-w-0 items-baseline gap-1.5">
+          <h2 className="truncate text-sm font-bold text-[var(--text)]">{title}</h2>
+          {sub && <span className="shrink-0 text-xs font-medium text-[var(--text-3)]">· {sub}</span>}
+        </div>
         {right}
       </header>
-      <div className="p-3">{children}</div>
+      {flush ? children : <div className="px-[var(--pad)] pb-[var(--pad)]">{children}</div>}
     </section>
   )
 }
 
 function WarnBox({ children, tone = 'amber' }) {
-  const cls =
-    tone === 'red' ? 'border-red-500/70 bg-red-500/10 text-red-400' : 'border-amber-400/70 bg-amber-400/10 text-amber-400'
+  const c = tone === 'red' ? 'var(--danger)' : 'var(--warn)'
   return (
-    <div className={`flex items-start gap-2 border px-3 py-2 text-[11px] leading-relaxed tracking-wide ${cls}`}>
-      <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+    <div
+      className="flex items-start gap-2 rounded-[var(--radius-sm)] border px-3 py-2.5 text-[13px] leading-relaxed"
+      style={{
+        color: c,
+        borderColor: `color-mix(in srgb, ${c} 35%, transparent)`,
+        background: `color-mix(in srgb, ${c} 12%, transparent)`,
+      }}
+    >
+      <TriangleAlert size={15} className="mt-0.5 shrink-0" />
       <div>{children}</div>
     </div>
   )
@@ -169,28 +178,27 @@ function WarnBox({ children, tone = 'amber' }) {
 
 function NumInput({ value, onChange, step = 1, wide = false, grow = false }) {
   const bump = d => onChange(Math.max(0, (Number(value) || 0) + d))
-  const btn =
-    'px-3 py-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 active:bg-zinc-200 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 dark:active:bg-zinc-700'
+  const btn = 'px-3 py-2 text-[var(--text-2)] hover:text-[var(--accent-strong)] active:bg-[var(--surface-2)]'
   return (
     <div
-      className={`items-stretch border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950 ${
+      className={`items-stretch overflow-hidden rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] ${
         grow ? 'flex flex-1' : 'inline-flex'
       }`}
     >
       <button type="button" onClick={() => bump(-step)} className={btn} aria-label="decrease">
-        <Minus size={13} />
+        <Minus size={14} />
       </button>
       <input
         type="number"
         min="0"
         value={value}
         onChange={e => onChange(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
-        className={`${
-          wide ? 'w-20 py-2 text-2xl' : grow ? 'w-full min-w-0 py-1.5 text-base' : 'w-12 py-1 text-sm'
-        } bg-transparent text-center font-bold text-zinc-900 tabular-nums outline-none dark:text-zinc-100`}
+        className={`mono ${
+          wide ? 'w-20 py-2 text-2xl' : grow ? 'w-full min-w-0 py-2 text-base' : 'w-12 py-1.5 text-sm'
+        } bg-transparent text-center font-semibold text-[var(--text)] tabular-nums outline-none`}
       />
       <button type="button" onClick={() => bump(step)} className={btn} aria-label="increase">
-        <Plus size={13} />
+        <Plus size={14} />
       </button>
     </div>
   )
@@ -199,15 +207,15 @@ function NumInput({ value, onChange, step = 1, wide = false, grow = false }) {
 function DateField({ value, onChange }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">DATE</span>
+      <span className="mb-1.5 block text-xs font-semibold text-[var(--text-2)]">Date</span>
       <div className="flex items-center gap-3">
         <input
           type="date"
           value={value}
           onChange={e => onChange(e.target.value)}
-          className="border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
+          className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] outline-none focus:border-[var(--accent)]"
         />
-        <span className="text-xs tracking-widest text-zinc-500">{dayName(value)}</span>
+        <span className="text-sm text-[var(--text-3)]">{dayName(value)}</span>
       </div>
     </label>
   )
@@ -215,8 +223,10 @@ function DateField({ value, onChange }) {
 
 function Modal({ onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 p-3 backdrop-blur-sm">
-      <div className="mx-auto my-6 w-full max-w-md border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950">{children}</div>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 p-3 backdrop-blur-sm">
+      <div className="mx-auto my-6 w-full max-w-md overflow-hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)]">
+        {children}
+      </div>
       <button type="button" className="hidden" onClick={onClose} aria-hidden />
     </div>
   )
@@ -224,13 +234,20 @@ function Modal({ onClose, children }) {
 
 function ModalHeader({ icon: Icon, title, onClose }) {
   return (
-    <header className="flex items-center justify-between border-b border-zinc-200 px-3 py-2 dark:border-zinc-800">
-      <div className="flex items-center gap-2 text-zinc-900 dark:text-zinc-100">
-        <Icon size={14} className="text-emerald-400" />
-        <h2 className="text-xs font-bold tracking-[0.25em]">{title}</h2>
+    <header className="flex items-center justify-between border-b border-[var(--border)] px-[var(--pad)] py-3.5">
+      <div className="flex items-center gap-2.5 text-[var(--text)]">
+        <span className="flex h-8 w-8 items-center justify-center rounded-[11px] bg-[var(--surface-2)] text-[var(--accent-strong)]">
+          <Icon size={16} />
+        </span>
+        <h2 className="text-sm font-bold">{title}</h2>
       </div>
-      <button type="button" onClick={onClose} className="text-zinc-400 hover:text-zinc-900 dark:text-zinc-600 dark:hover:text-zinc-100" aria-label="close">
-        <X size={16} />
+      <button
+        type="button"
+        onClick={onClose}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-[var(--text-3)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
+        aria-label="close"
+      >
+        <X size={18} />
       </button>
     </header>
   )
@@ -317,48 +334,45 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
 
   return (
     <Modal onClose={close}>
-      <ModalHeader icon={Dumbbell} title="PARK SESSION // STRENGTH" onClose={close} />
-      <div className="space-y-3 p-3">
+      <ModalHeader icon={Dumbbell} title="Park session" onClose={close} />
+      <div className="space-y-3.5 p-4">
         {phase === 'date' && (
           <>
             <DateField value={date} onChange={setDate} />
             {warning && <WarnBox>{warning}</WarnBox>}
             {parkCount >= QUOTA.park && (
-              <WarnBox>PARK QUOTA ALREADY MET {parkCount}/{QUOTA.park} — THIS LOGS AS EXTRA VOLUME</WarnBox>
+              <WarnBox>Park quota already met {parkCount}/{QUOTA.park} — this logs as extra volume.</WarnBox>
             )}
-            <div className="border border-zinc-200 px-3 py-2 text-[11px] leading-relaxed text-zinc-500 dark:border-zinc-800">
-              CIRCUIT ▸{' '}
-              {EXERCISES.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 'S' : ''}`).join(
+            <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-3 text-[12px] leading-relaxed text-[var(--text-2)]">
+              <span className="font-semibold text-[var(--text)]">Circuit ▸ </span>
+              {EXERCISES.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 's' : ''}`).join(
                 ' ▸ ',
               )}
-              <div className="mt-1 text-zinc-400 dark:text-zinc-600">MANDATORY {REST_SECONDS / 60}:00 REST BETWEEN SETS.</div>
+              <div className="mt-1 text-[var(--text-3)]">Mandatory {REST_SECONDS / 60}:00 rest between sets.</div>
             </div>
             <Btn kind={warning ? 'warn' : 'primary'} className="w-full" onClick={() => setPhase('live')}>
-              {warning ? 'OVERRIDE & START' : 'START CIRCUIT'} <ChevronRight size={14} />
+              {warning ? 'Override & start' : 'Start circuit'} <ChevronRight size={16} />
             </Btn>
             <Btn kind="ghost" className="w-full" onClick={quickLog}>
-              QUICK LOG — ENTER REPS, SKIP TIMER
+              Quick log — enter reps, skip timer
             </Btn>
           </>
         )}
 
         {phase === 'live' && (
           <>
-            <div className="flex items-end gap-1">
+            <div className="flex items-center gap-1.5">
               {dots.map((d, i) => (
                 <span
                   key={i}
-                  className={`h-3 w-3 border ${d.group ? 'ml-2' : ''} ${
-                    d.logged
-                      ? 'border-emerald-400 bg-emerald-400'
-                      : d.active
-                        ? 'animate-pulse border-zinc-900 bg-zinc-900/20 dark:border-zinc-100 dark:bg-zinc-100/20'
-                        : 'border-zinc-200 dark:border-zinc-800'
-                  }`}
+                  className={`h-2.5 w-2.5 rounded-full ${d.group ? 'ml-2' : ''} ${d.active ? 'animate-pulse' : ''}`}
+                  style={{
+                    background: d.logged ? 'var(--accent)' : d.active ? 'color-mix(in srgb, var(--accent) 30%, transparent)' : 'var(--surface-2)',
+                  }}
                 />
               ))}
-              <span className="ml-auto text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">
-                {fmtDate(date)} · SET {Math.min(step + 1, steps.length)}/{steps.length}
+              <span className="mono ml-auto text-[11px] text-[var(--text-3)]">
+                Set {Math.min(step + 1, steps.length)}/{steps.length}
               </span>
             </div>
 
@@ -368,62 +382,65 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                   e.preventDefault()
                   logSet()
                 }}
-                className="space-y-3 border border-zinc-200 p-3 dark:border-zinc-800"
+                className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-3.5"
               >
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <div className="text-[10px] tracking-[0.25em] text-zinc-500">
+                    <div className="text-[11px] font-medium text-[var(--text-3)]">
                       {cur.ex.label} · {EXERCISES.findIndex(e => e.key === cur.ex.key) + 1}/4
                     </div>
-                    <div className="text-2xl font-bold tracking-widest text-zinc-900 dark:text-zinc-100">{cur.ex.short}</div>
+                    <div className="text-2xl font-extrabold text-[var(--text)]">{cur.ex.short}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-[10px] tracking-[0.25em] text-zinc-500">TARGET</div>
-                    <div className="text-2xl font-bold text-emerald-400 tabular-nums">
+                    <div className="text-[11px] font-medium text-[var(--text-3)]">Target</div>
+                    <div className="mono text-2xl font-bold text-[var(--accent-strong)]">
                       {targets[cur.ex.key][cur.set]}
-                      <span className="ml-1 text-[10px] text-zinc-500">{cur.ex.unit}</span>
+                      <span className="ml-1 text-[11px] text-[var(--text-3)]">{cur.ex.unit === 'SEC' ? 's' : ''}</span>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-3">
                   <NumInput value={input} onChange={setInput} step={cur.ex.inc} wide />
-                  <div className="text-[10px] leading-relaxed tracking-widest text-zinc-400 dark:text-zinc-600">
+                  <div className="mono text-[11px] leading-relaxed text-[var(--text-3)]">
                     {[0, 1, 2]
                       .filter(s => values[cur.ex.key][s] != null)
                       .map(s => `S${s + 1}:${values[cur.ex.key][s]}✓`)
-                      .join(' ') || 'NO SETS LOGGED'}
+                      .join(' ') || 'no sets logged'}
                   </div>
                 </div>
                 {cur.ex.note && (
-                  <p className="border-l-2 border-zinc-300 pl-2 text-[10px] leading-relaxed tracking-wide text-zinc-500 dark:border-zinc-700">
+                  <p className="border-l-2 pl-2.5 text-[12px] leading-relaxed text-[var(--text-2)]" style={{ borderColor: 'var(--warn)' }}>
                     {cur.ex.note}
                   </p>
                 )}
                 <Btn kind="primary" className="w-full" onClick={logSet}>
-                  <Check size={14} /> LOG SET
-                  {step < steps.length - 1 && <span className="text-[10px] opacity-70">▸ STARTS 2:00 REST</span>}
+                  <Check size={16} /> Log set
+                  {step < steps.length - 1 && <span className="text-[11px] opacity-70">▸ starts 2:00 rest</span>}
                 </Btn>
               </form>
             )}
 
             {resting && (
-              <div className="space-y-3 border border-emerald-400/40 bg-emerald-400/5 p-3 text-center">
-                <div className="flex items-center justify-center gap-2 text-[10px] tracking-[0.3em] text-emerald-400">
-                  <Timer size={12} /> REST PROTOCOL — MANDATORY
+              <div
+                className="space-y-3 rounded-[var(--radius-sm)] p-4 text-center"
+                style={{ background: 'var(--accent-weak)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' }}
+              >
+                <div className="flex items-center justify-center gap-2 text-[12px] font-semibold" style={{ color: 'var(--accent-strong)' }}>
+                  <Timer size={14} /> Rest protocol — mandatory
                 </div>
-                <div className="text-6xl font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
+                <div className="mono text-6xl font-bold text-[var(--text)]">
                   {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}
                 </div>
-                <div className="h-1 w-full bg-zinc-200 dark:bg-zinc-800">
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
                   <div
-                    className="h-1 bg-emerald-400 transition-all duration-200"
-                    style={{ width: `${((REST_SECONDS - remaining) / REST_SECONDS) * 100}%` }}
+                    className="h-full rounded-full transition-all duration-200"
+                    style={{ width: `${((REST_SECONDS - remaining) / REST_SECONDS) * 100}%`, background: 'var(--accent)' }}
                   />
                 </div>
                 {next && (
-                  <div className="text-[11px] tracking-widest text-zinc-600 dark:text-zinc-400">
-                    NEXT ▸ {next.ex.short} · SET {next.set + 1}/{SETS} · TARGET {targets[next.ex.key][next.set]}{' '}
-                    {next.ex.unit}
+                  <div className="text-[12px] text-[var(--text-2)]">
+                    Next ▸ {next.ex.short} · set {next.set + 1}/{SETS} · target {targets[next.ex.key][next.set]}
+                    {next.ex.unit === 'SEC' ? 's' : ''}
                   </div>
                 )}
                 <button
@@ -432,9 +449,9 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                     setSkips(s => s + 1)
                     advance()
                   }}
-                  className="mx-auto flex items-center gap-1 text-[10px] tracking-[0.25em] text-zinc-400 hover:text-amber-400 dark:text-zinc-600"
+                  className="mx-auto flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-3)] hover:text-[var(--warn)]"
                 >
-                  <SkipForward size={11} /> SKIP REST — LOGGED AS VIOLATION
+                  <SkipForward size={13} /> Skip rest — logged as violation
                 </button>
               </div>
             )}
@@ -443,18 +460,13 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
 
         {phase === 'review' && (
           <>
-            <div className="text-[10px] tracking-[0.25em] text-zinc-500">REVIEW ▸ {fmtDate(date)}</div>
-            <div className="space-y-2.5">
+            <div className="text-[12px] font-medium text-[var(--text-3)]">Review ▸ {fmtDate(date)}</div>
+            <div className="space-y-3">
               {EXERCISES.map(ex => (
-                <div
-                  key={ex.key}
-                  className="space-y-1.5 border-b border-zinc-200/70 pb-2.5 last:border-b-0 last:pb-0 dark:border-zinc-800/70"
-                >
+                <div key={ex.key} className="space-y-1.5 border-b border-[var(--border)] pb-3 last:border-b-0 last:pb-0">
                   <div className="flex items-baseline justify-between">
-                    <span className="text-[11px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.short}</span>
-                    <span className="text-[10px] tracking-widest text-zinc-400 tabular-nums dark:text-zinc-600">
-                      TARGET {targets[ex.key].join('·')}
-                    </span>
+                    <span className="text-[13px] font-semibold text-[var(--text)]">{ex.short}</span>
+                    <span className="mono text-[11px] text-[var(--text-3)]">target {targets[ex.key].join('·')}</span>
                   </div>
                   <div className="flex gap-1.5">
                     {[0, 1, 2].map(s => (
@@ -476,13 +488,9 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 </div>
               ))}
             </div>
-            {skips > 0 && <WarnBox>REST TIMER SKIPPED ×{skips} — RECOVERY PROTOCOL VIOLATED</WarnBox>}
-            <Btn
-              kind={struggled ? 'warn' : 'ghost'}
-              className="w-full"
-              onClick={() => setStruggled(s => !s)}
-            >
-              <Flag size={13} /> {struggled ? 'STRUGGLED — PROGRESSION WILL HOLD' : 'FLAG AS STRUGGLED'}
+            {skips > 0 && <WarnBox>Rest timer skipped ×{skips} — recovery protocol violated.</WarnBox>}
+            <Btn kind={struggled ? 'warn' : 'ghost'} className="w-full" onClick={() => setStruggled(s => !s)}>
+              <Flag size={15} /> {struggled ? 'Struggled — progression will hold' : 'Flag as struggled'}
             </Btn>
             <Btn
               kind="primary"
@@ -492,15 +500,13 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                   id: uid(),
                   type: 'park',
                   date,
-                  sets: Object.fromEntries(
-                    EXERCISES.map(ex => [ex.key, values[ex.key].map(clampInt)]),
-                  ),
+                  sets: Object.fromEntries(EXERCISES.map(ex => [ex.key, values[ex.key].map(clampInt)])),
                   struggled,
                   restSkips: skips,
                 })
               }
             >
-              <Check size={14} /> SAVE SESSION
+              <Check size={16} /> Save session
             </Btn>
           </>
         )}
@@ -540,83 +546,90 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
   const valid = Number(durMin) > 0 || Number(durSec) > 0
   const Icon = soccer ? Trophy : HeartPulse
 
-  const segBtn = (active, disabled, cls) =>
-    `flex flex-1 items-center justify-center gap-2 border px-3 py-2 text-xs font-bold tracking-[0.2em] transition-colors ${
+  const segBtn = (active, disabled) =>
+    `flex flex-1 items-center justify-center gap-2 rounded-[var(--radius-sm)] border px-3 py-2.5 text-[13px] font-semibold transition ${
       disabled
-        ? 'cursor-not-allowed border-zinc-200 text-zinc-300 dark:border-zinc-800 dark:text-zinc-700'
+        ? 'cursor-not-allowed border-[var(--border)] text-[var(--text-3)] opacity-60'
         : active
-          ? cls
-          : 'border-zinc-300 text-zinc-500 hover:text-zinc-800 dark:border-zinc-700 dark:hover:text-zinc-200'
+          ? 'border-transparent'
+          : 'border-[var(--border)] text-[var(--text-2)] hover:text-[var(--text)]'
     }`
+  const inputCls =
+    'rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-semibold text-[var(--text)] tabular-nums outline-none focus:border-[var(--accent)]'
+  const fieldLabel = 'mb-1.5 block text-xs font-semibold text-[var(--text-2)]'
 
   return (
     <Modal onClose={onClose}>
-      <ModalHeader icon={Icon} title={soccer ? 'SOCCER // MATCH DAY' : 'CARDIO // ENGINE WORK'} onClose={onClose} />
-      <div className="space-y-3 p-3">
+      <ModalHeader icon={Icon} title={soccer ? 'Soccer · match day' : 'Cardio · engine work'} onClose={onClose} />
+      <div className="space-y-3.5 p-4">
         <DateField value={date} onChange={setDate} />
 
         <div>
-          <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">SHIN STATUS</span>
-          <div className="flex gap-1">
+          <span className={fieldLabel}>Shin status</span>
+          <div className="flex gap-2">
             <button
               type="button"
               onClick={() => setShin('good')}
-              className={segBtn(!tight, false, 'border-emerald-400 bg-emerald-400 text-zinc-950')}
+              className={segBtn(!tight, false)}
+              style={!tight ? { background: 'var(--done)', color: '#fff' } : undefined}
             >
-              <Check size={13} /> GOOD
+              <Check size={15} /> Good
             </button>
             <button
               type="button"
               onClick={() => setShin('tight')}
-              className={segBtn(tight, false, 'border-red-500 bg-red-500 text-zinc-950')}
+              className={segBtn(tight, false)}
+              style={tight ? { background: 'var(--danger)', color: '#fff' } : undefined}
             >
-              <TriangleAlert size={13} /> TIGHT
+              <TriangleAlert size={15} /> Tight
             </button>
           </div>
         </div>
 
         {tight && (
           <WarnBox tone="red">
-            SHIN SPLINT PROTOCOL ACTIVE — RUN LOCKED{!soccer && ', SWIM FORCED'}. NO IMPACT UNTIL CLEAR.
+            Shin splint protocol active — run locked{!soccer && ', swim forced'}. No impact until clear.
           </WarnBox>
         )}
 
         {!soccer && (
           <div>
-            <span className="mb-1 block text-[10px] tracking-[0.25em] text-zinc-500">MODE</span>
-            <div className="flex gap-1">
+            <span className={fieldLabel}>Mode</span>
+            <div className="flex gap-2">
               <button
                 type="button"
                 disabled={tight}
                 onClick={() => setMode('run')}
-                className={segBtn(mode === 'run', tight, 'border-zinc-900 bg-zinc-900 text-zinc-50 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-950')}
+                className={segBtn(mode === 'run', tight)}
+                style={mode === 'run' && !tight ? { background: 'var(--accent)', color: 'var(--on-accent)' } : undefined}
               >
-                {tight ? <Lock size={13} /> : <Footprints size={13} />} RUN
+                {tight ? <Lock size={15} /> : <Footprints size={15} />} Run
               </button>
               <button
                 type="button"
                 onClick={() => setMode('swim')}
-                className={segBtn(mode === 'swim', false, 'border-sky-400 bg-sky-400 text-zinc-950')}
+                className={segBtn(mode === 'swim', false)}
+                style={mode === 'swim' ? { background: '#38bdf8', color: '#06222e' } : undefined}
               >
-                <Waves size={13} /> SWIM
+                <Waves size={15} /> Swim
               </button>
             </div>
           </div>
         )}
 
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div>
-            <span className="mb-1 block text-[9px] tracking-[0.2em] text-zinc-500">DURATION</span>
-            <div className="flex items-center gap-1">
+            <span className={fieldLabel}>Duration</span>
+            <div className="flex items-center gap-2">
               <input
                 type="number"
                 min="0"
                 placeholder="0"
                 value={durMin}
                 onChange={e => setDurMin(e.target.value)}
-                className="w-16 border border-zinc-300 bg-white px-2 py-1.5 text-sm font-bold text-zinc-900 tabular-nums outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
+                className={`mono w-16 text-center ${inputCls}`}
               />
-              <span className="font-bold text-zinc-400 dark:text-zinc-600">:</span>
+              <span className="font-bold text-[var(--text-3)]">:</span>
               <input
                 type="number"
                 min="0"
@@ -624,18 +637,18 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
                 placeholder="00"
                 value={durSec}
                 onChange={e => setDurSec(Math.min(59, Math.max(0, Number(e.target.value) || 0)) || '')}
-                className="w-16 border border-zinc-300 bg-white px-2 py-1.5 text-sm font-bold text-zinc-900 tabular-nums outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
+                className={`mono w-16 text-center ${inputCls}`}
               />
-              <span className="text-[9px] tracking-widest text-zinc-400 dark:text-zinc-600">MIN : SEC</span>
+              <span className="text-[11px] font-medium text-[var(--text-3)]">min : sec</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             {[
-              ['DISTANCE KM', distance, setDistance, '0.1'],
-              ['AVG HR BPM', avgHr, setAvgHr, '1'],
+              ['Distance (km)', distance, setDistance, '0.1'],
+              ['Avg HR (bpm)', avgHr, setAvgHr, '1'],
             ].map(([label, value, set, step]) => (
               <label key={label} className="block">
-                <span className="mb-1 block text-[9px] tracking-[0.2em] text-zinc-500">{label}</span>
+                <span className={fieldLabel}>{label}</span>
                 <input
                   type="number"
                   min="0"
@@ -643,7 +656,7 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
                   placeholder="0"
                   value={value}
                   onChange={e => set(e.target.value)}
-                  className="w-full border border-zinc-300 bg-white px-2 py-1.5 text-sm font-bold text-zinc-900 tabular-nums outline-none focus:border-zinc-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:focus:border-zinc-400"
+                  className={`mono w-full ${inputCls}`}
                 />
               </label>
             ))}
@@ -671,9 +684,9 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
             })
           }
         >
-          <Check size={14} /> {warnings.length ? 'OVERRIDE & LOG' : 'LOG SESSION'}
+          <Check size={16} /> {warnings.length ? 'Override & log' : 'Log session'}
         </Btn>
-        {!valid && <p className="text-center text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">DURATION REQUIRED</p>}
+        {!valid && <p className="text-center text-[12px] text-[var(--text-3)]">Duration required</p>}
       </div>
     </Modal>
   )
@@ -685,55 +698,53 @@ function WeekReview({ data, onConfirm, onClose }) {
   const preview = useMemo(() => computeProgression(data.targets, data.sessions), [data])
   const q = quotaStatus(data.sessions)
 
-  const statusCls = { progress: 'text-emerald-400', hold: 'text-zinc-500', cap: 'text-amber-400' }
+  const statusColor = { progress: 'var(--accent-strong)', hold: 'var(--text-3)', cap: 'var(--warn)' }
 
   return (
     <Modal onClose={onClose}>
-      <ModalHeader icon={TrendingUp} title={`WEEK ${String(data.week).padStart(2, '0')} // PROGRESSION ENGINE`} onClose={onClose} />
-      <div className="space-y-3 p-3">
-        <div className="flex items-center justify-between border border-zinc-200 px-3 py-2 text-[11px] tracking-widest dark:border-zinc-800">
-          <span className="text-zinc-600 dark:text-zinc-400">
-            PARK {q.parks}/{QUOTA.park} · CARDIO {q.cardio}/{QUOTA.cardio} · SOCCER {q.soccer}/{QUOTA.soccer}
+      <ModalHeader icon={TrendingUp} title={`Week ${String(data.week).padStart(2, '0')} · progression`} onClose={onClose} />
+      <div className="space-y-3.5 p-4">
+        <div className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-2.5 text-[12px]">
+          <span className="mono text-[var(--text-2)]">
+            Park {q.parks}/{QUOTA.park} · Cardio {q.cardio}/{QUOTA.cardio} · Soccer {q.soccer}/{QUOTA.soccer}
           </span>
-          <span className={q.met ? 'font-bold text-emerald-400' : 'font-bold text-amber-400'}>
-            {q.met ? 'QUOTA MET' : 'INCOMPLETE'}
+          <span className="font-bold" style={{ color: q.met ? 'var(--accent-strong)' : 'var(--warn)' }}>
+            {q.met ? 'Met' : 'Incomplete'}
           </span>
         </div>
 
-        {preview.struggled && (
-          <WarnBox>STRUGGLED FLAG ON RECORD — ALL TARGETS HOLD THIS ROLLOVER</WarnBox>
-        )}
+        {preview.struggled && <WarnBox>Struggled flag on record — all targets hold this rollover.</WarnBox>}
 
-        <div className="space-y-1">
+        <div className="space-y-2">
           {EXERCISES.map(ex => {
             const p = preview.out[ex.key]
             return (
-              <div key={ex.key} className="border border-zinc-200 px-3 py-2 dark:border-zinc-800">
+              <div key={ex.key} className="rounded-[var(--radius-sm)] border border-[var(--border)] px-3.5 py-2.5">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="w-16 text-[10px] tracking-widest text-zinc-700 dark:text-zinc-300">{ex.short}</span>
-                  <span className="flex items-center gap-2 font-bold tabular-nums">
-                    <span className="text-zinc-500">{data.targets[ex.key].join('·')}</span>
-                    <ChevronRight size={12} className="text-zinc-400 dark:text-zinc-600" />
-                    <span className={statusCls[p.status]}>{p.next.join('·')}</span>
+                  <span className="text-[13px] font-semibold text-[var(--text)]">{ex.short}</span>
+                  <span className="mono flex items-center gap-2 font-bold">
+                    <span className="text-[var(--text-3)]">{data.targets[ex.key].join('·')}</span>
+                    <ChevronRight size={13} className="text-[var(--text-3)]" />
+                    <span style={{ color: statusColor[p.status] }}>{p.next.join('·')}</span>
                   </span>
                 </div>
-                <div className={`mt-0.5 text-right text-[10px] tracking-widest ${statusCls[p.status]}`}>
-                  {p.status === 'hold' ? `HOLD — ${p.reason}` : p.reason}
+                <div className="mt-0.5 text-right text-[11px] font-medium" style={{ color: statusColor[p.status] }}>
+                  {p.status === 'hold' ? `Hold — ${p.reason}` : p.reason}
                 </div>
               </div>
             )
           })}
         </div>
 
-        <div className="border border-zinc-200 px-3 py-2 text-[10px] leading-relaxed tracking-wide text-zinc-500 dark:border-zinc-800">
-          V2 ENGINE ▸ STRICT HOLD IF ANY SET MISSED · +1 TO SET 1 ONLY · SQUATS CAP 15 · PLANK CAP 60S
+        <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-2.5 text-[11.5px] leading-relaxed text-[var(--text-2)]">
+          V2 engine ▸ strict hold if any set missed · +1 to set 1 only · squats cap 15 · plank cap 60s
         </div>
 
         <Btn kind="primary" className="w-full" onClick={() => onConfirm(preview)}>
-          <Check size={14} /> ARCHIVE WEEK & APPLY TARGETS
+          <Check size={16} /> Archive week & apply targets
         </Btn>
         <Btn className="w-full" onClick={onClose}>
-          CANCEL — KEEP WEEK OPEN
+          Cancel — keep week open
         </Btn>
       </div>
     </Modal>
@@ -743,31 +754,55 @@ function WeekReview({ data, onConfirm, onClose }) {
 // ---------- dashboard pieces ----------
 
 function QuotaRow({ icon: Icon, label, sub, blocks, count, onLog }) {
+  const required = blocks.filter(b => b !== 'optional').length || blocks.length
+  const doneCount = blocks.filter(b => b === 'done' || b === 'over').length
+  const full = !blocks.includes('todo')
+  const pct = required ? Math.min(100, (doneCount / required) * 100) : 0
   return (
-    <div className="flex items-center gap-2.5 py-1.5">
-      <Icon size={15} className="shrink-0 text-zinc-500" />
+    <div className="flex items-center gap-3.5 border-t border-[var(--border)] px-[var(--pad)] py-3.5">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--surface-2)] text-[var(--accent-strong)]">
+        <Icon size={19} />
+      </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-bold tracking-[0.2em] text-zinc-800 dark:text-zinc-200">{label}</div>
-        <div className="truncate text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">{sub}</div>
+        <div className="truncate text-[14px] font-bold text-[var(--text)]">{label}</div>
+        <div className="truncate text-xs text-[var(--text-2)]">{sub}</div>
+        <div className="mt-2 h-1 max-w-[200px] overflow-hidden rounded-full bg-[var(--surface-2)]">
+          <div
+            className="h-full rounded-full bg-[var(--accent)] transition-[width] duration-300"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
       </div>
-      <div className="flex shrink-0 gap-1">
+      <div className="hidden shrink-0 items-center gap-1.5 sm:flex">
         {blocks.map((b, i) => (
           <span
             key={i}
-            className={`h-3.5 w-3.5 border ${
-              b === 'done' ? 'border-emerald-400 bg-emerald-400' : 'border-zinc-300 dark:border-zinc-700'
-            }`}
+            className="h-[22px] w-[22px] rounded-[7px] border-[1.5px]"
+            style={{
+              borderColor: b === 'done' || b === 'over' ? 'var(--accent)' : 'var(--border)',
+              borderStyle: b === 'optional' ? 'dashed' : 'solid',
+              background: b === 'done' ? 'var(--accent)' : b === 'over' ? 'var(--warn)' : 'transparent',
+            }}
           />
         ))}
       </div>
-      <span className="w-11 shrink-0 text-right text-xs font-bold text-zinc-700 tabular-nums dark:text-zinc-300">{count}</span>
-      <button
-        type="button"
-        onClick={onLog}
-        className="flex shrink-0 items-center gap-1 border border-zinc-300 px-2.5 py-1.5 text-[10px] font-bold tracking-widest text-zinc-700 hover:border-emerald-400 hover:text-emerald-400 active:bg-emerald-400/10 dark:border-zinc-700 dark:text-zinc-300"
-      >
-        <Plus size={11} /> LOG
-      </button>
+      <span className="mono w-9 shrink-0 text-right text-[13px] font-semibold text-[var(--text-2)]">{count}</span>
+      {full ? (
+        <span
+          className="flex shrink-0 items-center gap-1.5 rounded-[var(--btn-radius)] px-3.5 py-2 text-[12.5px] font-bold"
+          style={{ background: 'var(--accent-weak)', color: 'var(--accent-strong)' }}
+        >
+          <Check size={15} /> Done
+        </span>
+      ) : (
+        <button
+          type="button"
+          onClick={onLog}
+          className="flex shrink-0 items-center gap-1.5 rounded-[var(--btn-radius)] border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent-strong)]"
+        >
+          <Plus size={15} /> Log
+        </button>
+      )}
     </div>
   )
 }
@@ -786,31 +821,41 @@ function SessionLine({ s, onDelete }) {
   const detail =
     s.type === 'park'
       ? EXERCISES.map(ex => `${ex.code} ${(s.sets[ex.key] ?? []).join('/')}`).join(' · ')
-      : `${fmtDuration(s.duration)} · ${s.distance}KM · ${s.avgHr || '—'}BPM`
+      : `${fmtDuration(s.duration)} · ${s.distance}km · ${s.avgHr || '—'}bpm`
   const tag =
-    s.type === 'park' ? 'PARK' : s.type === 'soccer' ? 'SOCCER' : s.mode === 'swim' ? 'SWIM' : 'RUN'
-  const tagCls =
+    s.type === 'park' ? 'Park' : s.type === 'soccer' ? 'Soccer' : s.mode === 'swim' ? 'Swim' : 'Run'
+  const dot =
     s.type === 'park'
-      ? 'text-emerald-400 border-emerald-400/50'
+      ? 'var(--accent)'
       : s.type === 'soccer'
-        ? 'text-amber-400 border-amber-400/50'
+        ? 'var(--struggle)'
         : s.mode === 'swim'
-          ? 'text-sky-400 border-sky-400/50'
-          : 'text-zinc-800 border-zinc-500 dark:text-zinc-200'
+          ? '#38bdf8'
+          : 'var(--text-2)'
   return (
-    <div className="flex items-center gap-2 py-1 text-[11px]">
-      <span className="w-14 shrink-0 text-zinc-500 tabular-nums">{fmtDate(s.date)}</span>
-      <span className={`shrink-0 border px-1.5 py-0.5 text-[9px] font-bold tracking-widest ${tagCls}`}>{tag}</span>
-      <span className="min-w-0 flex-1 truncate text-zinc-600 tabular-nums dark:text-zinc-400">{detail}</span>
+    <div className="flex items-center gap-2.5 border-t border-[var(--border)] px-[var(--pad)] py-3 text-sm">
+      <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dot }} />
+      <span className="shrink-0 font-semibold text-[var(--text)]">{tag}</span>
+      <span className="mono min-w-0 flex-1 truncate text-[12px] text-[var(--text-3)]">{detail}</span>
       {s.type !== 'park' && s.shin === 'tight' && (
-        <span className="shrink-0 text-[9px] font-bold tracking-widest text-red-400">SHIN:TIGHT</span>
+        <span className="shrink-0 text-[11px] font-semibold" style={{ color: 'var(--danger)' }}>
+          shin: tight
+        </span>
       )}
-      {s.struggled && <Flag size={11} className="shrink-0 text-amber-400" />}
+      {s.struggled && <Flag size={13} className="shrink-0" style={{ color: 'var(--struggle)' }} />}
       {s.restSkips > 0 && (
-        <span className="shrink-0 text-[9px] tracking-widest text-amber-400">SKIP×{s.restSkips}</span>
+        <span className="shrink-0 text-[11px]" style={{ color: 'var(--warn)' }}>
+          skip×{s.restSkips}
+        </span>
       )}
-      <button type="button" onClick={onDelete} className="shrink-0 text-zinc-300 hover:text-red-400 dark:text-zinc-700" aria-label="delete">
-        <X size={12} />
+      <span className="mono shrink-0 text-[12px] text-[var(--text-3)]">{fmtDate(s.date)}</span>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="shrink-0 text-[var(--text-3)] hover:text-[var(--danger)]"
+        aria-label="delete"
+      >
+        <X size={14} />
       </button>
     </div>
   )
@@ -821,25 +866,25 @@ function SessionLine({ s, onDelete }) {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 const HEAT_CELL = {
-  future: 'bg-zinc-100 dark:bg-zinc-800/40',
-  rest: 'bg-sky-100 dark:bg-sky-900',
-  missed: 'bg-red-500 dark:bg-red-600',
-  struggled: 'bg-amber-400 dark:bg-amber-500',
-  worked: 'bg-emerald-500 dark:bg-emerald-500',
+  future: 'var(--surface-2)',
+  rest: 'var(--rest)',
+  missed: 'var(--danger)',
+  struggled: 'var(--struggle)',
+  worked: 'var(--done)',
 }
 
 const HEAT_LABEL = {
   future: '',
   rest: 'rest day',
-  missed: 'MISSED',
+  missed: 'missed',
   struggled: 'worked out · struggled',
   worked: 'worked out',
 }
 
-function HeatSwatch({ status, label }) {
+function HeatSwatch({ color, label }) {
   return (
-    <span className="flex items-center gap-1">
-      <span className={`h-[10px] w-[10px] rounded-[2px] ${HEAT_CELL[status]}`} />
+    <span className="flex items-center gap-1.5 text-[var(--text-2)]">
+      <span className="h-[11px] w-[11px] rounded-[3px]" style={{ background: color }} />
       {label}
     </span>
   )
@@ -852,19 +897,20 @@ function Heatmap({ heat, days, today, onToggle }) {
   useEffect(() => {
     if (scroller.current) scroller.current.scrollLeft = scroller.current.scrollWidth
   }, [])
+  const cell = { width: 'var(--cell)', height: 'var(--cell)' }
 
   return (
     <div>
       <div ref={scroller} className="overflow-x-auto pb-1">
-        <div className="inline-block">
-          <div className="mb-1 flex gap-[3px] pl-7">
+        <div className="inline-flex flex-col gap-1.5">
+          <div className="flex gap-[var(--cell-gap)] pl-8">
             {cols.map((col, w) => {
               const m = Number(col[0].slice(5, 7)) - 1
               const prevM = w > 0 ? Number(cols[w - 1][0].slice(5, 7)) - 1 : -1
               return (
-                <div key={col[0]} className="relative w-[11px]">
+                <div key={col[0]} className="relative" style={{ width: 'var(--cell)' }}>
                   {m !== prevM && (
-                    <span className="absolute left-0 whitespace-nowrap text-[9px] tracking-wide text-zinc-400 dark:text-zinc-500">
+                    <span className="absolute left-0 whitespace-nowrap text-[10px] text-[var(--text-3)]">
                       {MONTHS[m]}
                     </span>
                   )}
@@ -872,16 +918,16 @@ function Heatmap({ heat, days, today, onToggle }) {
               )
             })}
           </div>
-          <div className="flex gap-[3px]">
-            <div className="mr-1 flex w-6 flex-col gap-[3px] text-[8px] leading-[11px] text-zinc-400 dark:text-zinc-500">
+          <div className="flex gap-[var(--cell-gap)]">
+            <div className="flex w-8 flex-col gap-[var(--cell-gap)] pr-1 text-[9px] text-[var(--text-3)]">
               {['', 'Mon', '', 'Wed', '', 'Fri', ''].map((d, r) => (
-                <span key={r} className="h-[11px]">
+                <span key={r} style={{ height: 'var(--cell)', lineHeight: 'var(--cell)' }}>
                   {d}
                 </span>
               ))}
             </div>
             {cols.map(col => (
-              <div key={col[0]} className="flex flex-col gap-[3px]">
+              <div key={col[0]} className="flex flex-col gap-[var(--cell-gap)]">
                 {col.map(date => {
                   const status = heatStatus(date, heat, days, today)
                   const clickable = status === 'rest' || status === 'missed'
@@ -893,9 +939,14 @@ function Heatmap({ heat, days, today, onToggle }) {
                       disabled={!clickable}
                       onClick={() => clickable && onToggle(date)}
                       title={status === 'future' ? fmtDate(date) : `${fmtDate(date)} — ${HEAT_LABEL[status]}`}
-                      className={`h-[11px] w-[11px] rounded-[2px] ${HEAT_CELL[status]} ${
-                        isToday ? 'ring-1 ring-zinc-900 dark:ring-zinc-100' : ''
-                      } ${clickable ? 'cursor-pointer' : 'cursor-default'}`}
+                      style={{
+                        ...cell,
+                        borderRadius: 'var(--cell-radius)',
+                        background: HEAT_CELL[status],
+                        opacity: status === 'future' ? 0.5 : 1,
+                        boxShadow: isToday ? '0 0 0 1.5px var(--accent)' : undefined,
+                        cursor: clickable ? 'pointer' : 'default',
+                      }}
                     />
                   )
                 })}
@@ -904,15 +955,15 @@ function Heatmap({ heat, days, today, onToggle }) {
           </div>
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] tracking-widest text-zinc-400 dark:text-zinc-500">
-        <HeatSwatch status="worked" label="WORKED OUT" />
-        <HeatSwatch status="struggled" label="STRUGGLED" />
-        <HeatSwatch status="missed" label="MISSED" />
-        <HeatSwatch status="rest" label="REST" />
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11.5px]">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <HeatSwatch color={HEAT_CELL.worked} label="Worked out" />
+          <HeatSwatch color={HEAT_CELL.struggled} label="Struggled" />
+          <HeatSwatch color={HEAT_CELL.missed} label="Missed" />
+          <HeatSwatch color={HEAT_CELL.rest} label="Rest" />
+        </div>
+        <span className="text-[var(--text-3)]">Tap a rest day to flag it missed</span>
       </div>
-      <p className="mt-1 text-[9px] tracking-widest text-zinc-300 dark:text-zinc-600">
-        TAP A REST DAY TO FLAG IT MISSED
-      </p>
     </div>
   )
 }
@@ -921,8 +972,8 @@ function Heatmap({ heat, days, today, onToggle }) {
 
 function LoadingScreen() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-mono dark:bg-zinc-950">
-      <span className="animate-pulse text-[10px] tracking-[0.3em] text-zinc-500">LOADING...</span>
+    <div className="flex min-h-screen items-center justify-center bg-[var(--bg)]">
+      <span className="animate-pulse text-sm font-medium text-[var(--text-3)]">Loading…</span>
     </div>
   )
 }
@@ -942,9 +993,9 @@ export default function App() {
   // Theme
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
-    document.documentElement.style.background = dark ? '#09090b' : '#fafafa'
+    document.documentElement.style.background = dark ? '#0c0f13' : '#f4f6f8'
     localStorage.setItem('fq-theme', dark ? 'dark' : 'light')
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#09090b' : '#fafafa')
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0c0f13' : '#f4f6f8')
   }, [dark])
 
   // Auth state listener
@@ -1064,131 +1115,154 @@ export default function App() {
   if (!user) return <Auth dark={dark} setDark={setDark} />
 
   return (
-    <div className="min-h-screen bg-zinc-50 font-mono text-sm text-zinc-700 antialiased dark:bg-zinc-950 dark:text-zinc-300">
-      <div className="mx-auto max-w-2xl space-y-3 p-3 pb-10 sm:p-4">
-        <header className="space-y-2 pt-2">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-base font-bold tracking-[0.2em] text-zinc-900 dark:text-zinc-100 sm:text-lg sm:tracking-[0.3em]">
-                WORKOUT <span className="text-emerald-400">TRACKER</span>
-              </h1>
-              <p className="mt-0.5 truncate text-[10px] tracking-[0.2em] text-zinc-400 dark:text-zinc-600">
-                {fmtDate(todayStr())} · NO FIXED DAYS — HIT THE NUMBERS
-              </p>
+    <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+      <div className="mx-auto w-full max-w-[760px] px-4 pb-16 pt-7 sm:px-5">
+        <header className="mb-[18px] flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[24px] font-extrabold tracking-[-0.025em] text-[var(--text)]">Workout Tracker</h1>
+              <span
+                className="mono rounded-full px-2.5 py-1 text-[12px] font-semibold"
+                style={{ background: 'var(--accent-weak)', color: 'var(--accent-strong)' }}
+              >
+                Week {String(data.week).padStart(2, '0')}
+              </span>
             </div>
-            <div className="shrink-0 text-2xl font-bold leading-none text-zinc-900 tabular-nums dark:text-zinc-100">
-              WK {String(data.week).padStart(2, '0')}
-            </div>
+            <p className="mt-1.5 text-[13px] text-[var(--text-2)]">
+              {fmtDate(todayStr())} · No fixed days · Hit the numbers
+            </p>
           </div>
-          <div className="flex items-center justify-end gap-5">
+          <div className="flex shrink-0 items-center gap-2">
             <span
-              className={`text-[9px] tracking-widest ${
-                syncStatus === 'error'
-                  ? 'text-red-400'
-                  : syncStatus === 'syncing'
-                    ? 'animate-pulse text-amber-400'
-                    : 'text-emerald-400/50'
-              }`}
+              className="mono flex items-center gap-1.5 text-[11px] font-medium"
+              style={{
+                color: syncStatus === 'error' ? 'var(--danger)' : syncStatus === 'syncing' ? 'var(--warn)' : 'var(--text-3)',
+              }}
             >
-              {syncStatus === 'error' ? '● ERR' : syncStatus === 'syncing' ? '● SYNC' : '●'}
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${syncStatus === 'syncing' ? 'animate-pulse' : ''}`}
+                style={{
+                  background:
+                    syncStatus === 'error' ? 'var(--danger)' : syncStatus === 'syncing' ? 'var(--warn)' : 'var(--accent)',
+                }}
+              />
+              {syncStatus === 'error' ? 'Error' : syncStatus === 'syncing' ? 'Sync' : 'Synced'}
             </span>
             <button
               type="button"
               onClick={() => setDark(d => !d)}
-              className="flex items-center gap-1 py-0.5 text-[9px] tracking-[0.25em] text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
               aria-label="toggle theme"
+              className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text)] hover:border-[var(--accent)]"
             >
-              {dark ? <Sun size={11} /> : <Moon size={11} />}
-              {dark ? 'LIGHT' : 'DARK'}
+              {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
             <button
               type="button"
               onClick={signOut}
-              className="py-0.5 text-[9px] tracking-[0.25em] text-zinc-400 hover:text-zinc-900 dark:text-zinc-500 dark:hover:text-zinc-100"
+              className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[12px] font-semibold text-[var(--text-2)] hover:text-[var(--text)]"
             >
-              SIGN OUT
+              Sign out
             </button>
             <button
               type="button"
               onClick={reset}
-              className="flex items-center gap-1 py-0.5 text-[9px] tracking-[0.25em] text-zinc-300 hover:text-red-400 dark:text-zinc-700"
+              aria-label="reset"
+              className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-3)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
             >
-              <RotateCcw size={10} /> RESET
+              <RotateCcw size={16} />
             </button>
           </div>
         </header>
 
-        <div className="flex items-center gap-2 border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-bold tracking-[0.25em] text-emerald-600 dark:bg-emerald-400/5 dark:text-emerald-400">
-          <Unlock size={12} className="shrink-0" /> V2 · PULL-UP NODE UNLOCKED
-          <span className="ml-auto hidden font-normal tracking-widest text-emerald-600/50 sm:inline dark:text-emerald-400/50">
-            VERTICAL PULL ONLINE
+        <div
+          className="mb-4 flex items-center justify-between gap-3 rounded-[var(--radius)] px-[var(--pad)] py-3.5"
+          style={{ background: 'var(--accent-weak)', border: '1px solid color-mix(in srgb, var(--accent) 26%, transparent)' }}
+        >
+          <div className="flex items-center gap-2.5" style={{ color: 'var(--accent-strong)' }}>
+            <Unlock size={16} className="shrink-0" />
+            <span className="text-[13.5px] font-bold">v2 · Pull-up node unlocked</span>
+          </div>
+          <span
+            className="hidden items-center gap-2 text-[12px] font-semibold sm:flex"
+            style={{ color: 'var(--accent-strong)' }}
+          >
+            <span
+              className="h-[7px] w-[7px] rounded-full"
+              style={{ background: 'var(--accent)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent)' }}
+            />
+            Vertical pull online
           </span>
         </div>
 
         <Panel
-          title="WEEKLY QUOTA — FLOATING"
+          title="Weekly quota"
+          sub="Floating"
+          flush
           right={
-            <span className={`text-[10px] font-bold tracking-[0.25em] ${q.met ? 'text-emerald-400' : 'text-zinc-400 dark:text-zinc-600'}`}>
-              {q.met ? '■ QUOTA MET' : '□ OPEN'}
+            <span
+              className="rounded-full px-2.5 py-1 text-[12px] font-bold"
+              style={q.met ? { background: 'var(--accent-weak)', color: 'var(--accent-strong)' } : { color: 'var(--text-3)' }}
+            >
+              {q.met ? 'Met' : 'Open'}
             </span>
           }
         >
-          <div className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-            <QuotaRow
-              icon={Dumbbell}
-              label="PARK STRENGTH"
-              sub="3×/WK · NEVER BACK-TO-BACK DAYS"
-              blocks={blocksFor(q.parks, QUOTA.park)}
-              count={`${q.parks}/${QUOTA.park}`}
-              onLog={() => setPanel('park')}
-            />
-            <QuotaRow
-              icon={HeartPulse}
-              label="CARDIO RUN/SWIM"
-              sub="2×/WK · SHIN PROTOCOL ENFORCED"
-              blocks={blocksFor(q.cardio, QUOTA.cardio)}
-              count={`${q.cardio}/${QUOTA.cardio}`}
-              onLog={() => setPanel('cardio')}
-            />
-            <QuotaRow
-              icon={Trophy}
-              label="SOCCER"
-              sub="1×/WK · SATURDAY SLOT"
-              blocks={blocksFor(q.soccer, QUOTA.soccer)}
-              count={`${q.soccer}/${QUOTA.soccer}`}
-              onLog={() => setPanel('soccer')}
-            />
-          </div>
+          <QuotaRow
+            icon={Dumbbell}
+            label="Park strength"
+            sub="3×/wk · Never back-to-back days"
+            blocks={blocksFor(q.parks, QUOTA.park)}
+            count={`${q.parks}/${QUOTA.park}`}
+            onLog={() => setPanel('park')}
+          />
+          <QuotaRow
+            icon={HeartPulse}
+            label="Cardio run/swim"
+            sub="2×/wk · Shin protocol enforced"
+            blocks={blocksFor(q.cardio, QUOTA.cardio)}
+            count={`${q.cardio}/${QUOTA.cardio}`}
+            onLog={() => setPanel('cardio')}
+          />
+          <QuotaRow
+            icon={Trophy}
+            label="Soccer"
+            sub="1×/wk · Saturday slot"
+            blocks={blocksFor(q.soccer, QUOTA.soccer)}
+            count={`${q.soccer}/${QUOTA.soccer}`}
+            onLog={() => setPanel('soccer')}
+          />
         </Panel>
 
-        <Panel title={`STRENGTH TARGETS — WK ${String(data.week).padStart(2, '0')}`}>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Panel title="Strength targets" sub={`Week ${String(data.week).padStart(2, '0')}`}>
+          <div className="grid grid-cols-2 gap-[var(--gap)] sm:grid-cols-4">
             {EXERCISES.map(ex => (
-              <div key={ex.key} className="border border-zinc-200 px-2 py-1.5 dark:border-zinc-800">
-                <div className="text-[9px] leading-tight tracking-[0.15em] text-zinc-500">
-                  {ex.label} <span className="text-zinc-300 dark:text-zinc-700">{ex.unit}</span>
+              <div key={ex.key} className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
+                <div className="text-[10.5px] font-bold uppercase leading-tight tracking-[0.05em] text-[var(--text-3)]">
+                  {ex.label}
                 </div>
-                <div className="mt-0.5 text-lg font-bold text-zinc-900 tabular-nums dark:text-zinc-100">
+                <div className="mt-0.5 text-[10px] uppercase tracking-[0.05em] text-[var(--text-3)]">
+                  {ex.unit === 'SEC' ? 'sec' : 'reps'}
+                </div>
+                <div className="mono mt-3 text-[19px] font-semibold tracking-[-0.01em] text-[var(--text)]">
                   {data.targets[ex.key].join('·')}
                 </div>
-                {ex.cap != null ? (
-                  <div className="text-[9px] tracking-widest text-amber-500/80 dark:text-amber-500/70">
-                    CEILING {ex.cap}
-                    {ex.unit === 'SEC' ? 'S' : ''}
-                  </div>
-                ) : (
-                  <div className="text-[9px] tracking-widest text-zinc-300 dark:text-zinc-700">UNCAPPED</div>
-                )}
+                <div
+                  className="mt-2 text-[11px] font-semibold"
+                  style={{ color: ex.cap != null ? 'var(--warn)' : 'var(--text-3)' }}
+                >
+                  {ex.cap != null ? `Ceiling ${ex.cap}${ex.unit === 'SEC' ? 's' : ''}` : 'Uncapped'}
+                </div>
               </div>
             ))}
           </div>
         </Panel>
 
         <Panel
-          title="ACTIVITY — LAST YEAR"
+          title="Activity"
+          sub="Last year"
           right={
-            <span className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">
-              {activity.worked} WORKOUTS{activity.missed > 0 ? ` · ${activity.missed} MISSED` : ''}
+            <span className="mono text-[12px] font-medium text-[var(--text-2)]">
+              {activity.worked} workouts{activity.missed > 0 ? ` · ${activity.missed} missed` : ''}
             </span>
           }
         >
@@ -1196,56 +1270,55 @@ export default function App() {
         </Panel>
 
         <Panel
-          title="WEEK LOG"
-          right={<span className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">{sorted.length} SESSIONS</span>}
+          title="Week log"
+          flush
+          right={<span className="mono text-[12px] text-[var(--text-2)]">{sorted.length} sessions</span>}
         >
           {sorted.length === 0 ? (
-            <p className="py-2 text-center text-[11px] tracking-[0.2em] text-zinc-400 dark:text-zinc-700">
-              NO SESSIONS — WEEK FLOATS UNTIL YOU MOVE
-            </p>
-          ) : (
-            <div className="divide-y divide-zinc-200 dark:divide-zinc-800/60">
-              {sorted.map(s => (
-                <SessionLine
-                  key={s.id}
-                  s={s}
-                  onDelete={() => setData(d => ({ ...d, sessions: d.sessions.filter(x => x.id !== s.id) }))}
-                />
-              ))}
+            <div className="border-t border-[var(--border)] px-[var(--pad)] py-7 text-center text-[13.5px] text-[var(--text-3)]">
+              No sessions yet — the week floats until you move.
             </div>
+          ) : (
+            sorted.map(s => (
+              <SessionLine
+                key={s.id}
+                s={s}
+                onDelete={() => setData(d => ({ ...d, sessions: d.sessions.filter(x => x.id !== s.id) }))}
+              />
+            ))
           )}
         </Panel>
 
-        <Btn kind="primary" className="w-full py-3" onClick={() => setPanel('review')}>
-          COMPLETE WEEK <ChevronRight size={14} /> RUN PROGRESSION ENGINE
+        <Btn kind="primary" className="mb-4 w-full py-4 text-[15px]" onClick={() => setPanel('review')}>
+          Complete week <ChevronRight size={16} className="opacity-60" /> Run progression engine
         </Btn>
 
         {data.history.length > 0 && (
           <Panel
-            title="ARCHIVE"
-            right={<span className="text-[10px] tracking-widest text-zinc-400 dark:text-zinc-600">+ PROGRESS · = HOLD · ■ CAP</span>}
+            title="Archive"
+            flush
+            right={<span className="mono text-[11.5px] text-[var(--text-3)]">+ progress · = hold · ■ cap</span>}
           >
-            <div className="space-y-1 text-[11px] tabular-nums">
-              {data.history.map(h => (
-                <div key={h.week} className="flex items-center justify-between text-zinc-500">
-                  <span>
-                    WK {String(h.week).padStart(2, '0')} ▸ P{h.q.parks}/{QUOTA.park} C{h.q.cardio} S{h.q.soccer}
-                  </span>
-                  <span className={h.q.met ? 'text-emerald-400/80' : 'text-amber-400/80'}>
-                    {h.q.met ? 'MET' : 'MISSED'}
-                  </span>
-                  <span className="tracking-widest">
-                    {h.deltas}
-                    {h.struggled ? ' ⚑' : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
+            {data.history.map(h => (
+              <div key={h.week} className="flex items-center gap-3 border-t border-[var(--border)] px-[var(--pad)] py-3 text-[13px]">
+                <span className="min-w-[52px] font-bold text-[var(--text)]">Wk {String(h.week).padStart(2, '0')}</span>
+                <span className="mono min-w-0 flex-1 truncate text-[12px] text-[var(--text-2)]">
+                  P{h.q.parks}/{QUOTA.park} · C{h.q.cardio} · S{h.q.soccer}
+                </span>
+                <span className="text-[12px] font-bold" style={{ color: h.q.met ? 'var(--accent-strong)' : 'var(--warn)' }}>
+                  {h.q.met ? 'Met' : 'Missed'}
+                </span>
+                <span className="mono min-w-[92px] text-right text-[12px] text-[var(--text-3)]">
+                  {h.deltas}
+                  {h.struggled ? ' ⚑' : ''}
+                </span>
+              </div>
+            ))}
           </Panel>
         )}
 
-        <footer className="pt-1 text-center text-[9px] leading-relaxed tracking-[0.2em] text-zinc-300 dark:text-zinc-700">
-          48H BETWEEN PARK SESSIONS · SQUATS/PLANK CAPPED · TIGHT SHIN ⇒ SWIM ONLY · NO RUNS FRI/SUN · REST 2:00
+        <footer className="mt-5 text-center text-[11.5px] leading-[1.8] text-[var(--text-3)]">
+          48h between park sessions · Squats / plank capped · Tight shin ⇒ swim only · No runs Fri / Sun · Rest 2:00
         </footer>
       </div>
 

@@ -3,15 +3,78 @@
 /* Override built-in dark variant to use .dark class instead of media query */
 @variant dark (&:where(.dark, .dark *));
 
-html {
+/* ---- design tokens (from the Workout Tracker design) ----
+   Colors flip with the .dark class, so components reference var(--token)
+   and almost never need dark: variants. */
+:root {
   color-scheme: light;
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #f1f4f6;
+  --border: #e6eaee;
+  --text: #151a21;
+  --text-2: #5f6975;
+  --text-3: #99a2ad;
+  --accent: #0fb98a;
+  --accent-weak: #e3f6ef;
+  --accent-strong: #0a8a66;
+  --on-accent: #ffffff;
+  --done: #2fbf71;
+  --struggle: #f4c430;
+  --danger: #ef5a48;
+  --rest: #e3eaf1;
+  --warn: #dd8412;
+  --shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 22px rgba(16, 24, 40, 0.06);
+  --btn-primary-bg: #141a22;
+  --btn-primary-fg: #ffffff;
+
+  /* soft direction sizing */
+  --radius: 20px;
+  --radius-sm: 13px;
+  --pad: 22px;
+  --gap: 16px;
+  --btn-radius: 999px;
+  --cell: 14px;
+  --cell-gap: 4px;
+  --cell-radius: 4px;
+
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
+
 html.dark {
   color-scheme: dark;
+  --bg: #0c0f13;
+  --surface: #15191f;
+  --surface-2: #1c222a;
+  --border: #262d37;
+  --text: #edf0f3;
+  --text-2: #98a1ad;
+  --text-3: #5e6772;
+  --accent: #27d3a8;
+  --accent-weak: rgba(39, 211, 168, 0.13);
+  --accent-strong: #5fe6c6;
+  --on-accent: #06130f;
+  --done: #2fbf71;
+  --struggle: #e6bb2c;
+  --danger: #ef6151;
+  --rest: #1b2531;
+  --warn: #eda23c;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 10px 28px rgba(0, 0, 0, 0.4);
+  /* in dark mode the primary button uses the accent */
+  --btn-primary-bg: #27d3a8;
+  --btn-primary-fg: #06130f;
+}
+
+html {
+  background: var(--bg);
 }
 
 body {
-  background: transparent;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
   /* notch / home-indicator safe areas (used with viewport-fit=cover) */
   padding: env(safe-area-inset-top) env(safe-area-inset-right)
     env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -19,26 +82,48 @@ body {
   overscroll-behavior-y: none;
 }
 
+.mono {
+  font-family: var(--mono);
+}
+
 button {
+  font-family: inherit;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* On touch devices, give focusable fields a 16px font so iOS Safari does not
-   auto-zoom the page when they gain focus. Desktop keeps the dense sizing. */
-@media (pointer: coarse) {
-  input[type="number"],
-  input[type="date"],
-  input[type="email"],
-  input[type="password"] {
-    font-size: 16px;
+/* thin rounded scrollbars, per the design */
+::-webkit-scrollbar {
+  height: 9px;
+  width: 9px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 99px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+@keyframes enginePop {
+  0% {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
   }
 }
 
 /* date input color-scheme follows the theme class */
-input[type=date] { color-scheme: light; }
-html.dark input[type=date] { color-scheme: dark; }
+input[type="date"] {
+  color-scheme: light;
+}
+html.dark input[type="date"] {
+  color-scheme: dark;
+}
 
-/* native number spinners fight the terminal aesthetic */
+/* native number spinners fight the dense numeric inputs */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   -webkit-appearance: none;
@@ -47,4 +132,15 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
   -moz-appearance: textfield;
   appearance: textfield;
+}
+
+/* On touch devices, give focusable fields a 16px font so iOS Safari does not
+   auto-zoom the page when they gain focus. */
+@media (pointer: coarse) {
+  input[type="number"],
+  input[type="date"],
+  input[type="email"],
+  input[type="password"] {
+    font-size: 16px;
+  }
 }

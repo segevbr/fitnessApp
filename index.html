@@ -3,8 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#09090b" />
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%2309090b'/><rect x='2' y='6' width='3' height='4' fill='%2334d399'/><rect x='6' y='7' width='4' height='2' fill='%23e4e4e7'/><rect x='11' y='6' width='3' height='4' fill='%2334d399'/></svg>" />
+    <meta name="theme-color" content="#0c0f13" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%2309090b'/><rect x='2' y='6' width='3' height='4' fill='%2334d399'/><rect x='6' y='7' width='4' height='2' fill='%2334d399'/><rect x='11' y='6' width='3' height='4' fill='%2334d399'/></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <!-- Installable / home-screen app -->
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon.svg" />
@@ -19,7 +25,7 @@
         var t = localStorage.getItem('fq-theme')
         var dark = t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches
         if (dark) document.documentElement.classList.add('dark')
-        document.documentElement.style.background = dark ? '#09090b' : '#fafafa'
+        document.documentElement.style.background = dark ? '#0c0f13' : '#f4f6f8'
       })()
     </script>
   </head>
