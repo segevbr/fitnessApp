@@ -16,7 +16,7 @@ export const EXERCISES = [
   { key: 'core', label: 'PLANK',             short: 'PLANK',    code: 'PLK', unit: 'SEC',  start: 60, inc: 5, cap: 60,   note: null },
 ]
 
-export const QUOTA = { park: 3, cardioMin: 1, cardioMax: 2, soccer: 1 }
+export const QUOTA = { park: 3, cardio: 2, soccer: 1 }
 
 export const capLabel = ex => (ex.cap == null ? null : `${ex.cap}${ex.unit === 'SEC' ? 'S' : ''}`)
 
@@ -71,7 +71,7 @@ export function quotaStatus(sessions) {
     parks,
     cardio,
     soccer,
-    met: parks >= QUOTA.park && cardio >= QUOTA.cardioMin && soccer >= QUOTA.soccer,
+    met: parks >= QUOTA.park && cardio >= QUOTA.cardio && soccer >= QUOTA.soccer,
   }
 }
 
@@ -163,12 +163,13 @@ export function heatColumns(today) {
   return cols
 }
 
-// worked-out day -> green level by session count; else a manual missed mark;
-// else (past/today with no workout) a rest day; future days render empty.
+// A day is binary: worked out (green) or not. Struggled overrides to amber;
+// else a manual missed mark; else (past/today with no workout) a rest day;
+// future days render empty.
 export function heatStatus(date, heat, days, today) {
   if (date > today) return 'future'
   const h = heat[date]
-  if (h?.n > 0) return h.struggled ? 'struggled' : h.n >= 3 ? 'w3' : h.n === 2 ? 'w2' : 'w1'
+  if (h?.n > 0) return h.struggled ? 'struggled' : 'worked'
   if (days[date] === 'missed') return 'missed'
   return 'rest'
 }

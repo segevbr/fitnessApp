@@ -531,8 +531,8 @@ function CardioLogger({ kind, sessions, onSave, onClose }) {
   const warnings = []
   const runWarn = !soccer && mode === 'run' ? runDayWarning(date) : null
   if (runWarn) warnings.push(runWarn)
-  if (!soccer && q.cardio >= QUOTA.cardioMax)
-    warnings.push(`CARDIO QUOTA MAX REACHED ${q.cardio}/${QUOTA.cardioMax} — THIS LOGS AS EXTRA LOAD`)
+  if (!soccer && q.cardio >= QUOTA.cardio)
+    warnings.push(`CARDIO QUOTA MET ${q.cardio}/${QUOTA.cardio} — THIS LOGS AS EXTRA LOAD`)
   if (soccer && q.soccer >= QUOTA.soccer) warnings.push('SOCCER QUOTA ALREADY MET — EXTRA MATCH')
   if (soccer && dayName(date) !== 'SAT') warnings.push(`SOCCER IS SLOTTED SATURDAY — SELECTED ${dayName(date)}`)
   if (soccer && tight) warnings.push('TIGHT SHINS + MATCH IMPACT — MONITOR OR SIT OUT')
@@ -693,8 +693,7 @@ function WeekReview({ data, onConfirm, onClose }) {
       <div className="space-y-3 p-3">
         <div className="flex items-center justify-between border border-zinc-200 px-3 py-2 text-[11px] tracking-widest dark:border-zinc-800">
           <span className="text-zinc-600 dark:text-zinc-400">
-            PARK {q.parks}/{QUOTA.park} · CARDIO {q.cardio}/{QUOTA.cardioMin}–{QUOTA.cardioMax} · SOCCER {q.soccer}/
-            {QUOTA.soccer}
+            PARK {q.parks}/{QUOTA.park} · CARDIO {q.cardio}/{QUOTA.cardio} · SOCCER {q.soccer}/{QUOTA.soccer}
           </span>
           <span className={q.met ? 'font-bold text-emerald-400' : 'font-bold text-amber-400'}>
             {q.met ? 'QUOTA MET' : 'INCOMPLETE'}
@@ -756,13 +755,7 @@ function QuotaRow({ icon: Icon, label, sub, blocks, count, onLog }) {
           <span
             key={i}
             className={`h-3.5 w-3.5 border ${
-              b === 'done'
-                ? 'border-emerald-400 bg-emerald-400'
-                : b === 'over'
-                  ? 'border-amber-400 bg-amber-400'
-                  : b === 'optional'
-                    ? 'border-dashed border-zinc-300 dark:border-zinc-700'
-                    : 'border-zinc-300 dark:border-zinc-700'
+              b === 'done' ? 'border-emerald-400 bg-emerald-400' : 'border-zinc-300 dark:border-zinc-700'
             }`}
           />
         ))}
@@ -779,13 +772,9 @@ function QuotaRow({ icon: Icon, label, sub, blocks, count, onLog }) {
   )
 }
 
-const blocksFor = (count, required, optional = 0) => {
-  const total = required + optional
-  return Array.from({ length: Math.max(total, count) }, (_, i) => {
-    if (i < count) return i < total ? 'done' : 'over'
-    return i < required ? 'todo' : 'optional'
-  })
-}
+// Plain binary boxes: exactly `target` of them, each done (green) or not.
+// Extra sessions beyond target show only in the count (e.g. 3/2), not as boxes.
+const blocksFor = (count, target) => Array.from({ length: target }, (_, i) => (i < count ? 'done' : 'todo'))
 
 const fmtDuration = secs => {
   const m = Math.floor(secs / 60)
@@ -836,9 +825,7 @@ const HEAT_CELL = {
   rest: 'bg-sky-100 dark:bg-sky-900',
   missed: 'bg-red-500 dark:bg-red-600',
   struggled: 'bg-amber-400 dark:bg-amber-500',
-  w1: 'bg-emerald-400 dark:bg-emerald-700',
-  w2: 'bg-emerald-500 dark:bg-emerald-500',
-  w3: 'bg-emerald-600 dark:bg-emerald-400',
+  worked: 'bg-emerald-500 dark:bg-emerald-500',
 }
 
 const HEAT_LABEL = {
@@ -846,9 +833,7 @@ const HEAT_LABEL = {
   rest: 'rest day',
   missed: 'MISSED',
   struggled: 'worked out · struggled',
-  w1: '1 workout',
-  w2: '2 workouts',
-  w3: '3+ workouts',
+  worked: 'worked out',
 }
 
 function HeatSwatch({ status, label }) {
@@ -919,19 +904,11 @@ function Heatmap({ heat, days, today, onToggle }) {
           </div>
         </div>
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[9px] tracking-widest text-zinc-400 dark:text-zinc-500">
-        <div className="flex items-center gap-3">
-          <HeatSwatch status="rest" label="REST" />
-          <HeatSwatch status="missed" label="MISSED" />
-          <HeatSwatch status="struggled" label="STRUGGLED" />
-        </div>
-        <div className="flex items-center gap-1">
-          LESS
-          <span className={`h-[11px] w-[11px] rounded-[2px] ${HEAT_CELL.w1}`} />
-          <span className={`h-[11px] w-[11px] rounded-[2px] ${HEAT_CELL.w2}`} />
-          <span className={`h-[11px] w-[11px] rounded-[2px] ${HEAT_CELL.w3}`} />
-          MORE
-        </div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[9px] tracking-widest text-zinc-400 dark:text-zinc-500">
+        <HeatSwatch status="worked" label="WORKED OUT" />
+        <HeatSwatch status="struggled" label="STRUGGLED" />
+        <HeatSwatch status="missed" label="MISSED" />
+        <HeatSwatch status="rest" label="REST" />
       </div>
       <p className="mt-1 text-[9px] tracking-widest text-zinc-300 dark:text-zinc-600">
         TAP A REST DAY TO FLAG IT MISSED
@@ -1168,9 +1145,9 @@ export default function App() {
             <QuotaRow
               icon={HeartPulse}
               label="CARDIO RUN/SWIM"
-              sub="1–2×/WK · SHIN PROTOCOL ENFORCED"
-              blocks={blocksFor(q.cardio, QUOTA.cardioMin, QUOTA.cardioMax - QUOTA.cardioMin)}
-              count={`${q.cardio}/${QUOTA.cardioMin}–${QUOTA.cardioMax}`}
+              sub="2×/WK · SHIN PROTOCOL ENFORCED"
+              blocks={blocksFor(q.cardio, QUOTA.cardio)}
+              count={`${q.cardio}/${QUOTA.cardio}`}
               onLog={() => setPanel('cardio')}
             />
             <QuotaRow

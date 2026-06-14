@@ -6,11 +6,11 @@ Vite + Tailwind CSS v4 + Lucide icons, with Supabase email auth and cross-device
 
 ### Activity heatmap
 
-A GitHub-style contribution grid (last 53 weeks) sits on the dashboard. Each day is colored:
-**green** for a workout (brighter with more sessions that day), **amber** for a day flagged
-*struggled*, **blue** for a rest day (the default for any past day with no workout — resting
-is allowed in a floating quota), and **red** for a *missed* day. Tap any rest day to flag it
-missed. Worked-out days fill in automatically and persist across week rollovers via a daily
+A GitHub-style contribution grid (last 53 weeks) sits on the dashboard. Each day is binary —
+**green** for a workout (no intensity shading; a day either happened or it didn't), **amber**
+for a day flagged *struggled*, **blue** for a rest day (the default for any past day with no
+workout — resting is allowed in a floating quota), and **red** for a *missed* day. Tap any
+rest day to flag it missed. Worked-out days fill in automatically and persist across week rollovers via a daily
 log (the per-week `sessions` list is cleared on rollover; the heatmap log is not).
 
 **V2 calibration** — vertical-pull node unlocked, volume rebalanced, and hard structural
@@ -43,10 +43,12 @@ to localStorage immediately and upserts to Supabase on a 1.2 s debounce.
 | Slot | Quota | Rule |
 |---|---|---|
 | Park strength | 3×/week | Warning when logged on consecutive (or same) days — checked across week rollovers |
-| Cardio run/swim | 1–2×/week | Shin splint protocol (below) · warning past 2/2 |
+| Cardio run/swim | 2×/week | Shin splint protocol (below) · warning on a 3rd (extra load) |
 | Soccer | 1×/week | Saturday slot — note when logged on another day |
 
-Sessions attach to dates only for validation; nothing is "scheduled".
+Sessions attach to dates only for validation; nothing is "scheduled". Quota boxes are
+plain binary done/not-done — extra sessions beyond a slot's target show only in the count
+(e.g. `3/2`), not as boxes.
 
 ### 2. Park session logging
 
