@@ -16,7 +16,9 @@ Requires Node **20.19+ or 22.12+** (Vite 8). The app needs a Supabase project to
 
 ```sh
 npm install
-cp .env.example .env.local   # then fill in your project URL + anon key
+# create .env.local with your Supabase project credentials:
+#   VITE_SUPABASE_URL=https://<project>.supabase.co
+#   VITE_SUPABASE_ANON_KEY=<anon key>
 npm run dev                  # http://localhost:5173
 npm run build                # production bundle in dist/
 ```
