@@ -34,6 +34,7 @@ import {
   consecutiveParkWarning,
   dayName,
   defaultTargets,
+  exercisesForSession,
   fmtDate,
   heatColumns,
   heatStats,
@@ -59,17 +60,22 @@ const freshState = () => ({
   days: {},
 })
 
-const isV2Targets = t =>
-  t && typeof t === 'object' && EXERCISES.every(e => Array.isArray(t[e.key]))
+// The stable target keys present since V2. New keys (e.g. the V2.1 pistol slot)
+// are merged in from defaults during migration rather than triggering a reset.
+const V2_KEYS = ['pull', 'push', 'legs', 'core']
+const isV2Targets = t => t && typeof t === 'object' && V2_KEYS.every(k => Array.isArray(t[k]))
 
-// Bring any persisted state — from localStorage OR Supabase — onto the V2 schema.
-// A V1 save uses retired movements (rows/push-ups under the old reset model) that
-// can't be replayed onto the new vertical-pull baseline, so we adopt the V2 targets
-// while preserving the week counter and the display-only archive; stale sessions are
-// dropped (they key on exercises that no longer exist). Already-V2 state passes through.
+// Bring any persisted state — from localStorage OR Supabase — onto the current
+// schema. A V1 save uses retired movements (rows/push-ups under the old reset
+// model) that can't be replayed onto the V2 baseline, so we adopt the V2 targets
+// while preserving the week counter and the display-only archive; stale sessions
+// are dropped. A V2/V2.1 save passes through, with any newly-added exercise keys
+// (e.g. pistol) filled from defaults so the dashboard never reads undefined.
 const migrate = raw => {
   if (!raw || typeof raw !== 'object') return freshState()
-  if (isV2Targets(raw.targets)) return { ...freshState(), ...raw }
+  if (isV2Targets(raw.targets)) {
+    return { ...freshState(), ...raw, targets: { ...defaultTargets(), ...raw.targets } }
+  }
   return {
     ...freshState(),
     week: typeof raw.week === 'number' ? raw.week : 1,
@@ -256,14 +262,18 @@ function ModalHeader({ icon: Icon, title, onClose }) {
 // ---------- park session logger ----------
 
 function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
-  const steps = useMemo(() => EXERCISES.flatMap(ex => [0, 1, 2].map(set => ({ ex, set }))), [])
+  // Which strength session of the week this is (1-indexed) decides the leg
+  // variant: session 1 = pistol squats (skill), sessions 2-3 = bodyweight squats.
+  const session = parkCount + 1
+  const circuit = useMemo(() => exercisesForSession(session), [session])
+  const steps = useMemo(() => circuit.flatMap(ex => [0, 1, 2].map(set => ({ ex, set }))), [circuit])
   const [phase, setPhase] = useState('date') // date -> live -> review
   const [date, setDate] = useState(todayStr())
   const [step, setStep] = useState(0)
   const [values, setValues] = useState(() =>
-    Object.fromEntries(EXERCISES.map(e => [e.key, Array(SETS).fill(null)])),
+    Object.fromEntries(circuit.map(e => [e.key, Array(SETS).fill(null)])),
   )
-  const [input, setInput] = useState(targets[EXERCISES[0].key][0])
+  const [input, setInput] = useState(targets[circuit[0].key][0])
   const [restEnd, setRestEnd] = useState(null)
   const [now, setNow] = useState(Date.now())
   const [skips, setSkips] = useState(0)
@@ -317,7 +327,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
   }
 
   function quickLog() {
-    setValues(Object.fromEntries(EXERCISES.map(e => [e.key, [...targets[e.key]]])))
+    setValues(Object.fromEntries(circuit.map(e => [e.key, [...targets[e.key]]])))
     setPhase('review')
   }
 
@@ -345,7 +355,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
             )}
             <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-3 text-[12px] leading-relaxed text-[var(--text-2)]">
               <span className="font-semibold text-[var(--text)]">Circuit ▸ </span>
-              {EXERCISES.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 's' : ''}`).join(
+              {circuit.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 's' : ''}`).join(
                 ' ▸ ',
               )}
               <div className="mt-1 text-[var(--text-3)]">Mandatory {REST_SECONDS / 60}:00 rest between sets.</div>
@@ -387,7 +397,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 <div className="flex items-baseline justify-between">
                   <div>
                     <div className="text-[11px] font-medium text-[var(--text-3)]">
-                      {cur.ex.label} · {EXERCISES.findIndex(e => e.key === cur.ex.key) + 1}/4
+                      {cur.ex.label} · {circuit.findIndex(e => e.key === cur.ex.key) + 1}/4
                     </div>
                     <div className="text-2xl font-extrabold text-[var(--text)]">{cur.ex.short}</div>
                   </div>
@@ -409,7 +419,10 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                   </div>
                 </div>
                 {cur.ex.note && (
-                  <p className="border-l-2 pl-2.5 text-[12px] leading-relaxed text-[var(--text-2)]" style={{ borderColor: 'var(--warn)' }}>
+                  <p
+                    className="mono border-l-2 pl-2.5 text-[11.5px] leading-relaxed text-[var(--text-3)]"
+                    style={{ borderColor: 'var(--border)' }}
+                  >
                     {cur.ex.note}
                   </p>
                 )}
@@ -462,7 +475,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
           <>
             <div className="text-[12px] font-medium text-[var(--text-3)]">Review ▸ {fmtDate(date)}</div>
             <div className="space-y-3">
-              {EXERCISES.map(ex => (
+              {circuit.map(ex => (
                 <div key={ex.key} className="space-y-1.5 border-b border-[var(--border)] pb-3 last:border-b-0 last:pb-0">
                   <div className="flex items-baseline justify-between">
                     <span className="text-[13px] font-semibold text-[var(--text)]">{ex.short}</span>
@@ -500,7 +513,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                   id: uid(),
                   type: 'park',
                   date,
-                  sets: Object.fromEntries(EXERCISES.map(ex => [ex.key, values[ex.key].map(clampInt)])),
+                  sets: Object.fromEntries(circuit.map(ex => [ex.key, values[ex.key].map(clampInt)])),
                   struggled,
                   restSkips: skips,
                 })
@@ -737,7 +750,7 @@ function WeekReview({ data, onConfirm, onClose }) {
         </div>
 
         <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-2.5 text-[11.5px] leading-relaxed text-[var(--text-2)]">
-          V2 engine ▸ strict hold if any set missed · +1 to set 1 only · squats cap 15 · plank cap 60s
+          V2.1 engine ▸ strict hold if any set missed · +1 to set 1 only · pistols cap 3 · squats cap 15 · plank cap 60s
         </div>
 
         <Btn kind="primary" className="w-full" onClick={() => onConfirm(preview)}>
@@ -820,7 +833,7 @@ const fmtDuration = secs => {
 function SessionLine({ s, onDelete }) {
   const detail =
     s.type === 'park'
-      ? EXERCISES.map(ex => `${ex.code} ${(s.sets[ex.key] ?? []).join('/')}`).join(' · ')
+      ? EXERCISES.filter(ex => s.sets[ex.key]).map(ex => `${ex.code} ${s.sets[ex.key].join('/')}`).join(' · ')
       : `${fmtDuration(s.duration)} · ${s.distance}km · ${s.avgHr || '—'}bpm`
   const tag =
     s.type === 'park' ? 'Park' : s.type === 'soccer' ? 'Soccer' : s.mode === 'swim' ? 'Swim' : 'Run'
@@ -1180,7 +1193,7 @@ export default function App() {
         >
           <div className="flex items-center gap-2.5" style={{ color: 'var(--accent-strong)' }}>
             <Unlock size={16} className="shrink-0" />
-            <span className="text-[13.5px] font-bold">v2 · Pull-up node unlocked</span>
+            <span className="text-[13.5px] font-bold">v2.1 · Flat Push &amp; Hybrid Legs Online</span>
           </div>
           <span
             className="hidden items-center gap-2 text-[12px] font-semibold sm:flex"
@@ -1190,7 +1203,7 @@ export default function App() {
               className="h-[7px] w-[7px] rounded-full"
               style={{ background: 'var(--accent)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent)' }}
             />
-            Vertical pull online
+            Hybrid legs active
           </span>
         </div>
 
@@ -1233,9 +1246,12 @@ export default function App() {
           />
         </Panel>
 
-        <Panel title="Strength targets" sub={`Week ${String(data.week).padStart(2, '0')}`}>
+        <Panel
+          title="Strength targets"
+          sub={`Week ${String(data.week).padStart(2, '0')} · next: session ${q.parks + 1}`}
+        >
           <div className="grid grid-cols-2 gap-[var(--gap)] sm:grid-cols-4">
-            {EXERCISES.map(ex => (
+            {exercisesForSession(q.parks + 1).map(ex => (
               <div key={ex.key} className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
                 <div className="text-[10.5px] font-bold uppercase leading-tight tracking-[0.05em] text-[var(--text-3)]">
                   {ex.label}
@@ -1246,12 +1262,16 @@ export default function App() {
                 <div className="mono mt-3 text-[19px] font-semibold tracking-[-0.01em] text-[var(--text)]">
                   {data.targets[ex.key].join('·')}
                 </div>
-                <div
-                  className="mt-2 text-[11px] font-semibold"
-                  style={{ color: ex.cap != null ? 'var(--warn)' : 'var(--text-3)' }}
-                >
-                  {ex.cap != null ? `Ceiling ${ex.cap}${ex.unit === 'SEC' ? 's' : ''}` : 'Uncapped'}
-                </div>
+                {ex.note ? (
+                  <div className="mono mt-2 text-[11px] leading-relaxed text-[var(--text-3)]">{ex.note}</div>
+                ) : (
+                  <div
+                    className="mt-2 text-[11px] font-semibold"
+                    style={{ color: ex.cap != null ? 'var(--warn)' : 'var(--text-3)' }}
+                  >
+                    {ex.cap != null ? `Ceiling ${ex.cap}${ex.unit === 'SEC' ? 's' : ''}` : 'Uncapped'}
+                  </div>
+                )}
               </div>
             ))}
           </div>

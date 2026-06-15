@@ -71,18 +71,23 @@ plain binary done/not-done — extra sessions beyond a slot's target show only i
 
 ### 2. Park session logging
 
-Guided circuit, 3 sets each — V2 baselines:
+Guided circuit, 3 sets each — V2.1 baselines:
 
 | Slot | Exercise | Unit | Baseline | Ceiling |
 |---|---|---|---|---|
 | Pull | Negative Pull-ups | reps | 5·5·5 | — |
-| Push | Incline Push-ups | reps | 12·12·12 | — |
-| Legs | Bodyweight Squats | reps | 15·15·15 | **15** |
+| Push | Flat Push-ups | reps | 12·12·12 | — |
+| Legs | **Hybrid** (see below) | reps | — | — |
 | Core | Plank | sec | 60·60·60 | **60s** |
 
+**Hybrid legs** — the leg exercise depends on which strength session of the week you're
+logging (a `parkCount + 1` index): **session 1** is skill work — *Pistol Squats* `3·3·3`
+(*"Neural skill work. 3 per leg max."*); **sessions 2–3** are active recovery — *Bodyweight
+Squats* `15·15·15` (*"Active recovery. Hard cap at 15."*). Both variants start at their cap,
+so they always hold. The dashboard targets card and the logger inputs switch automatically.
+
 A **mandatory 2:00 rest countdown** auto-starts after every logged set and gates the next
-input; each skip is recorded on the session as a violation. The squat input carries the
-subtitle *"Strictly capped at 15 to protect pitch budget."* A **QUICK LOG** shortcut fills
+input; each skip is recorded on the session as a violation. A **QUICK LOG** shortcut fills
 the targets and skips the timer for fast entry. A review screen allows corrections and a
 **STRUGGLED** flag before saving.
 

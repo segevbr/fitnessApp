@@ -9,12 +9,26 @@
 export const SETS = 3
 export const REST_SECONDS = 120
 
+// Every exercise that can hold a target. The leg slot has two variants
+// (pistol / bodyweight) that the weekly hybrid schedule swaps between — both
+// start at their cap, so they never progress (they protect the soccer leg budget).
 export const EXERCISES = [
-  { key: 'pull', label: 'NEGATIVE PULL-UPS', short: 'PULL-UPS', code: 'PUL', unit: 'REPS', start: 5,  inc: 1, cap: null, note: null },
-  { key: 'push', label: 'INCLINE PUSH-UPS',  short: 'PUSH-UPS', code: 'PSH', unit: 'REPS', start: 12, inc: 1, cap: null, note: null },
-  { key: 'legs', label: 'BODYWEIGHT SQUATS', short: 'SQUATS',   code: 'SQT', unit: 'REPS', start: 15, inc: 1, cap: 15,   note: 'Strictly capped at 15 to protect pitch budget.' },
-  { key: 'core', label: 'PLANK',             short: 'PLANK',    code: 'PLK', unit: 'SEC',  start: 60, inc: 5, cap: 60,   note: null },
+  { key: 'pull',   label: 'NEGATIVE PULL-UPS', short: 'PULL-UPS', code: 'PUL', unit: 'REPS', start: 5,  inc: 1, cap: null, note: null },
+  { key: 'push',   label: 'FLAT PUSH-UPS',     short: 'PUSH-UPS', code: 'PSH', unit: 'REPS', start: 12, inc: 1, cap: null, note: null },
+  { key: 'pistol', label: 'PISTOL SQUATS',     short: 'PISTOLS',  code: 'PST', unit: 'REPS', start: 3,  inc: 1, cap: 3,    note: 'Neural skill work. 3 per leg max.' },
+  { key: 'legs',   label: 'BODYWEIGHT SQUATS', short: 'SQUATS',   code: 'SQT', unit: 'REPS', start: 15, inc: 1, cap: 15,   note: 'Active recovery. Hard cap at 15.' },
+  { key: 'core',   label: 'PLANK',             short: 'PLANK',    code: 'PLK', unit: 'SEC',  start: 60, inc: 5, cap: 60,   note: null },
 ]
+
+const byKey = k => EXERCISES.find(e => e.key === k)
+
+// Dynamic hybrid leg schedule: strength session 1 of the week is skill work
+// (pistol squats), sessions 2-3 are active recovery (bodyweight squats).
+export const legExerciseForSession = session => (session <= 1 ? byKey('pistol') : byKey('legs'))
+
+// The four exercises in a given session's circuit (1-indexed session), in
+// circuit order: pull, push, the session's leg variant, core.
+export const exercisesForSession = session => [byKey('pull'), byKey('push'), legExerciseForSession(session), byKey('core')]
 
 export const QUOTA = { park: 3, cardio: 2, soccer: 1 }
 
