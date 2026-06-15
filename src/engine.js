@@ -164,6 +164,9 @@ export function weekRange(date) {
 // run/swim. A cardio-only day renders light green, distinct from full workouts.
 export function buildHeat(data) {
   const heat = {}
+  // Every date the archive remembers as a park (strength) session — used to
+  // recover the activity type of legacy folded log entries that predate the flags.
+  const parkDates = new Set((data.history || []).flatMap(h => h.parkDates || []))
   const bump = (date, { n = 1, struggled = false, full = false, cardio = false }) => {
     const e = heat[date] || { n: 0, struggled: false, full: false, cardio: false }
     heat[date] = {
@@ -173,9 +176,14 @@ export function buildHeat(data) {
       cardio: e.cardio || cardio,
     }
   }
-  for (const [date, e] of Object.entries(data.log || {}))
-    // legacy log entries predate the type flags; treat them as full workouts.
-    bump(date, { n: e.n || 0, struggled: !!e.struggled, full: e.full ?? true, cardio: !!e.cardio })
+  for (const [date, e] of Object.entries(data.log || {})) {
+    // Legacy entries predate the type flags. Recover the type so old cardio days
+    // still read light green: a park day (or a struggled day, which only strength
+    // sets) is full green; a Saturday is almost certainly soccer (full green);
+    // any other folded day was cardio.
+    const full = e.full ?? (parkDates.has(date) || !!e.struggled || weekdayOf(date) === 6)
+    bump(date, { n: e.n || 0, struggled: !!e.struggled, full, cardio: e.cardio ?? !full })
+  }
   for (const h of data.history || [])
     for (const date of h.parkDates || []) if (!data.log?.[date]) bump(date, { n: 1, full: true })
   for (const s of data.sessions || [])
