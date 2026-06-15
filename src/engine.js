@@ -149,19 +149,37 @@ export const addDays = (date, n) => {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
-// Merge every "I worked out" source into one date -> {n, struggled} map: the
-// persistent daily log (past weeks, already folded), legacy park dates from
-// history (older saves predating the log), and the current week's live sessions.
+// The Monday→Sunday calendar week containing `date`. Derived live from the real
+// date so the dashboard's week range advances on its own as the days pass.
+export function weekRange(date) {
+  const offsetToMon = (weekdayOf(date) + 6) % 7
+  const start = addDays(date, -offsetToMon)
+  return { start, end: addDays(start, 6) }
+}
+
+// Merge every "I worked out" source into one date -> {n, struggled, full, cardio}
+// map: the persistent daily log (past weeks, already folded), legacy park dates
+// from history (older saves predating the log), and the current week's live
+// sessions. `full` flags a strength/soccer day (full green); `cardio` flags a
+// run/swim. A cardio-only day renders light green, distinct from full workouts.
 export function buildHeat(data) {
   const heat = {}
-  const bump = (date, n, struggled) => {
-    const e = heat[date] || { n: 0, struggled: false }
-    heat[date] = { n: e.n + n, struggled: e.struggled || struggled }
+  const bump = (date, { n = 1, struggled = false, full = false, cardio = false }) => {
+    const e = heat[date] || { n: 0, struggled: false, full: false, cardio: false }
+    heat[date] = {
+      n: e.n + n,
+      struggled: e.struggled || struggled,
+      full: e.full || full,
+      cardio: e.cardio || cardio,
+    }
   }
-  for (const [date, e] of Object.entries(data.log || {})) bump(date, e.n || 0, !!e.struggled)
+  for (const [date, e] of Object.entries(data.log || {}))
+    // legacy log entries predate the type flags; treat them as full workouts.
+    bump(date, { n: e.n || 0, struggled: !!e.struggled, full: e.full ?? true, cardio: !!e.cardio })
   for (const h of data.history || [])
-    for (const date of h.parkDates || []) if (!data.log?.[date]) bump(date, 1, false)
-  for (const s of data.sessions || []) bump(s.date, 1, !!s.struggled)
+    for (const date of h.parkDates || []) if (!data.log?.[date]) bump(date, { n: 1, full: true })
+  for (const s of data.sessions || [])
+    bump(s.date, { struggled: !!s.struggled, full: s.type !== 'cardio', cardio: s.type === 'cardio' })
   return heat
 }
 
@@ -177,13 +195,16 @@ export function heatColumns(today) {
   return cols
 }
 
-// A day is binary: worked out (green) or not. Struggled overrides to amber;
-// else a manual missed mark; else (past/today with no workout) a rest day;
-// future days render empty.
+// Day status: a struggled flag wins (amber); a strength/soccer day is a full
+// green 'worked'; a cardio-only day is light green 'cardio'; else a manual
+// missed mark; else (past/today with no workout) a rest day; future renders empty.
 export function heatStatus(date, heat, days, today) {
   if (date > today) return 'future'
   const h = heat[date]
-  if (h?.n > 0) return h.struggled ? 'struggled' : 'worked'
+  if (h?.n > 0) {
+    if (h.struggled) return 'struggled'
+    return h.full ? 'worked' : 'cardio'
+  }
   if (days[date] === 'missed') return 'missed'
   return 'rest'
 }

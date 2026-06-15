@@ -6,12 +6,16 @@ Vite + Tailwind CSS v4 + Lucide icons, with Supabase email auth and cross-device
 
 ### Activity heatmap
 
-A GitHub-style contribution grid (last 53 weeks) sits on the dashboard. Each day is binary —
-**green** for a workout (no intensity shading; a day either happened or it didn't), **amber**
-for a day flagged *struggled*, **blue** for a rest day (the default for any past day with no
-workout — resting is allowed in a floating quota), and **red** for a *missed* day. Tap any
-rest day to flag it missed. Worked-out days fill in automatically and persist across week rollovers via a daily
-log (the per-week `sessions` list is cleared on rollover; the heatmap log is not).
+A GitHub-style contribution grid (last 53 weeks) sits on the dashboard. Day colors:
+**green** for a strength/soccer day, **light green** for a cardio-only day (run/swim still
+counts as activity), **amber** for a day flagged *struggled*, **blue** for a rest day (the
+default for any past day with no workout — resting is allowed in a floating quota), and
+**red** for a *missed* day. Hovering a cell **lights up that whole week** and dims the rest;
+tapping a workout opens a **detail window** (set-by-set for the current week; a type summary
+for folded past days), while tapping a rest day flags it missed. Worked-out days fill in
+automatically and persist across week rollovers via a daily log that records the activity type
+(the per-week `sessions` list is cleared on rollover; the heatmap log is not). The header shows
+the **live Monday–Sunday date range**, derived from the real date so it advances on its own.
 
 **V2 calibration** — vertical-pull node unlocked, volume rebalanced, and hard structural
 ceilings introduced to protect the Saturday soccer leg budget. State persisted under one

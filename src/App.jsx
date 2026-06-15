@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Auth from './Auth'
 import { supabase } from './supabase'
 import {
+  Activity,
   Check,
   ChevronRight,
   Dumbbell,
@@ -43,6 +44,7 @@ import {
   runDayWarning,
   todayStr,
   uid,
+  weekRange,
 } from './engine'
 
 const STORE_KEY = 'floating-quota-v2'
@@ -878,12 +880,16 @@ function SessionLine({ s, onDelete }) {
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+const fmtMonthDay = date => `${MONTHS[Number(date.slice(5, 7)) - 1]} ${Number(date.slice(8, 10))}`
+
 const HEAT_CELL = {
   future: 'var(--surface-2)',
   rest: 'var(--rest)',
   missed: 'var(--danger)',
   struggled: 'var(--struggle)',
   worked: 'var(--done)',
+  // a cardio-only day: lighter green, blended toward the empty-cell surface
+  cardio: 'color-mix(in srgb, var(--done) 48%, var(--surface-2))',
 }
 
 const HEAT_LABEL = {
@@ -892,6 +898,7 @@ const HEAT_LABEL = {
   missed: 'missed',
   struggled: 'worked out · struggled',
   worked: 'worked out',
+  cardio: 'cardio',
 }
 
 function HeatSwatch({ color, label }) {
@@ -903,9 +910,79 @@ function HeatSwatch({ color, label }) {
   )
 }
 
-function Heatmap({ heat, days, today, onToggle }) {
+// Detail window for a tapped heatmap day. Current-week sessions carry full
+// set-by-set detail; folded past days only retain a type/struggled summary.
+function DayDetail({ date, sessions, heat, onClose }) {
+  const daySessions = sessions.filter(s => s.date === date)
+  const h = heat[date]
+  return (
+    <Modal onClose={onClose}>
+      <ModalHeader icon={Activity} title={fmtDate(date)} onClose={onClose} />
+      <div className="space-y-3 p-4">
+        {daySessions.length > 0 ? (
+          daySessions.map(s => (
+            <div key={s.id} className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-bold text-[var(--text)]">
+                  {s.type === 'park' ? 'Park strength' : s.type === 'soccer' ? 'Soccer' : s.mode === 'swim' ? 'Swim' : 'Run'}
+                </span>
+                {s.struggled && (
+                  <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: 'var(--struggle)' }}>
+                    <Flag size={12} /> struggled
+                  </span>
+                )}
+              </div>
+              {s.type === 'park' ? (
+                <div className="mt-2.5 space-y-1.5">
+                  {EXERCISES.filter(ex => s.sets[ex.key]).map(ex => (
+                    <div key={ex.key} className="flex items-center justify-between text-[12px]">
+                      <span className="text-[var(--text-2)]">{ex.short}</span>
+                      <span className="mono font-semibold text-[var(--text)]">
+                        {s.sets[ex.key].join(' · ')}
+                        {ex.unit === 'SEC' ? 's' : ''}
+                      </span>
+                    </div>
+                  ))}
+                  {s.restSkips > 0 && (
+                    <div className="text-[11px]" style={{ color: 'var(--warn)' }}>
+                      Rest skipped ×{s.restSkips}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mono mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[var(--text-2)]">
+                  <span>{fmtDuration(s.duration)}</span>
+                  {s.distance > 0 && <span>{s.distance} km</span>}
+                  {s.avgHr > 0 && <span>{s.avgHr} bpm</span>}
+                  <span style={{ color: s.shin === 'tight' ? 'var(--danger)' : 'var(--text-3)' }}>shin {s.shin}</span>
+                </div>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-4">
+            <div className="flex items-center gap-2 text-[13px] font-semibold text-[var(--text)]">
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ background: HEAT_CELL[h?.struggled ? 'struggled' : h?.full ? 'worked' : 'cardio'] }}
+              />
+              {h?.struggled ? 'Worked out · struggled' : h?.full ? 'Worked out' : 'Cardio session'}
+            </div>
+            <p className="mt-2 text-[12px] leading-relaxed text-[var(--text-3)]">
+              {h?.n || 0} session{(h?.n || 0) === 1 ? '' : 's'} logged. Set-by-set detail is kept for the current week only.
+            </p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+function Heatmap({ heat, days, today, onToggle, sessions }) {
   const cols = useMemo(() => heatColumns(today), [today])
   const scroller = useRef(null)
+  const [hoverCol, setHoverCol] = useState(null) // week column highlighted on hover
+  const [openDate, setOpenDate] = useState(null) // day whose detail window is open
   // open scrolled to the most recent week, like GitHub
   useEffect(() => {
     if (scroller.current) scroller.current.scrollLeft = scroller.current.scrollWidth
@@ -921,9 +998,9 @@ function Heatmap({ heat, days, today, onToggle }) {
               const m = Number(col[0].slice(5, 7)) - 1
               const prevM = w > 0 ? Number(cols[w - 1][0].slice(5, 7)) - 1 : -1
               return (
-                <div key={col[0]} className="relative" style={{ width: 'var(--cell)' }}>
+                <div key={col[0]} className="relative h-[14px]" style={{ width: 'var(--cell)' }}>
                   {m !== prevM && (
-                    <span className="absolute left-0 whitespace-nowrap text-[10px] text-[var(--text-3)]">
+                    <span className="absolute left-0 top-0 whitespace-nowrap text-[10px] leading-none text-[var(--text-3)]">
                       {MONTHS[m]}
                     </span>
                   )}
@@ -939,26 +1016,40 @@ function Heatmap({ heat, days, today, onToggle }) {
                 </span>
               ))}
             </div>
-            {cols.map(col => (
-              <div key={col[0]} className="flex flex-col gap-[var(--cell-gap)]">
+            {cols.map((col, w) => (
+              <div
+                key={col[0]}
+                className="flex flex-col gap-[var(--cell-gap)]"
+                onMouseEnter={() => setHoverCol(w)}
+                onMouseLeave={() => setHoverCol(c => (c === w ? null : c))}
+              >
                 {col.map(date => {
                   const status = heatStatus(date, heat, days, today)
-                  const clickable = status === 'rest' || status === 'missed'
+                  const isWorkout = status === 'worked' || status === 'cardio' || status === 'struggled'
+                  const clickable = status !== 'future'
                   const isToday = date === today
+                  const dim = hoverCol != null && hoverCol !== w // other weeks fade so this one lights up
+                  const rings = []
+                  if (isToday) rings.push('0 0 0 1.5px var(--accent)')
+                  else if (hoverCol === w) rings.push('0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent)')
                   return (
                     <button
                       key={date}
                       type="button"
                       disabled={!clickable}
-                      onClick={() => clickable && onToggle(date)}
+                      onClick={() => {
+                        if (status === 'rest' || status === 'missed') onToggle(date)
+                        else if (isWorkout) setOpenDate(date)
+                      }}
                       title={status === 'future' ? fmtDate(date) : `${fmtDate(date)} — ${HEAT_LABEL[status]}`}
                       style={{
                         ...cell,
                         borderRadius: 'var(--cell-radius)',
                         background: HEAT_CELL[status],
-                        opacity: status === 'future' ? 0.5 : 1,
-                        boxShadow: isToday ? '0 0 0 1.5px var(--accent)' : undefined,
+                        opacity: status === 'future' ? 0.5 : dim ? 0.4 : 1,
+                        boxShadow: rings.length ? rings.join(', ') : undefined,
                         cursor: clickable ? 'pointer' : 'default',
+                        transition: 'opacity 120ms, box-shadow 120ms',
                       }}
                     />
                   )
@@ -971,12 +1062,14 @@ function Heatmap({ heat, days, today, onToggle }) {
       <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11.5px]">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <HeatSwatch color={HEAT_CELL.worked} label="Worked out" />
+          <HeatSwatch color={HEAT_CELL.cardio} label="Cardio" />
           <HeatSwatch color={HEAT_CELL.struggled} label="Struggled" />
           <HeatSwatch color={HEAT_CELL.missed} label="Missed" />
           <HeatSwatch color={HEAT_CELL.rest} label="Rest" />
         </div>
-        <span className="text-[var(--text-3)]">Tap a rest day to flag it missed</span>
+        <span className="text-[var(--text-3)]">Tap a workout for details · a rest day to flag it missed</span>
       </div>
+      {openDate && <DayDetail date={openDate} sessions={sessions} heat={heat} onClose={() => setOpenDate(null)} />}
     </div>
   )
 }
@@ -1087,8 +1180,13 @@ export default function App() {
       // sessions[] is cleared, so the activity heatmap keeps them forever
       const log = { ...d.log }
       for (const s of d.sessions) {
-        const e = log[s.date] || { n: 0, struggled: false }
-        log[s.date] = { n: e.n + 1, struggled: e.struggled || !!s.struggled }
+        const e = log[s.date] || { n: 0, struggled: false, full: false, cardio: false }
+        log[s.date] = {
+          n: e.n + 1,
+          struggled: e.struggled || !!s.struggled,
+          full: e.full || s.type !== 'cardio',
+          cardio: e.cardio || s.type === 'cardio',
+        }
       }
       return {
       ...d,
@@ -1116,14 +1214,6 @@ export default function App() {
     localStorage.removeItem(STORE_KEY)
   }
 
-  const reset = () => {
-    if (window.confirm('Wipe all weeks, sessions and targets?')) {
-      localStorage.removeItem(STORE_KEY)
-      if (user) supabase.from('user_data').delete().eq('user_id', user.id).then(() => {})
-      setData(freshState())
-    }
-  }
-
   if (!authReady) return <LoadingScreen />
   if (!user) return <Auth dark={dark} setDark={setDark} />
 
@@ -1142,7 +1232,7 @@ export default function App() {
               </span>
             </div>
             <p className="mt-1.5 text-[13px] text-[var(--text-2)]">
-              {fmtDate(todayStr())} · No fixed days · Hit the numbers
+              {fmtMonthDay(weekRange(today).start)} – {fmtMonthDay(weekRange(today).end)} · No fixed days · Hit the numbers
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
@@ -1178,9 +1268,10 @@ export default function App() {
             </button>
             <button
               type="button"
-              onClick={reset}
-              aria-label="reset"
-              className="flex h-[38px] w-[38px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-3)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+              disabled
+              aria-label="reset disabled"
+              title="Reset is disabled to protect your progress"
+              className="flex h-[38px] w-[38px] cursor-not-allowed items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--text-3)] opacity-40"
             >
               <RotateCcw size={16} />
             </button>
@@ -1286,7 +1377,7 @@ export default function App() {
             </span>
           }
         >
-          <Heatmap heat={heat} days={data.days || {}} today={today} onToggle={toggleMissed} />
+          <Heatmap heat={heat} days={data.days || {}} today={today} onToggle={toggleMissed} sessions={data.sessions} />
         </Panel>
 
         <Panel
