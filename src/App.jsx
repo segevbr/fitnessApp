@@ -11,6 +11,7 @@ import {
   Footprints,
   HeartPulse,
   Lock,
+  LogOut,
   Minus,
   Moon,
   Plus,
@@ -1400,24 +1401,24 @@ export default function App() {
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
       <div className="mx-auto w-full max-w-[760px] px-4 pb-16 pt-7 sm:px-5">
-        <header className="mb-[18px] flex flex-wrap items-start justify-between gap-4">
+        <header className="mb-[18px] flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-[24px] font-extrabold tracking-[-0.025em] text-[var(--text)]">Workout Tracker</h1>
+            <h1 className="whitespace-nowrap text-[24px] font-extrabold tracking-[-0.025em] text-[var(--text)]">
+              Workout Tracker
+            </h1>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-[var(--text-2)]">
               <span
-                className="mono rounded-full px-2.5 py-1 text-[12px] font-semibold"
+                className="mono rounded-full px-2.5 py-0.5 text-[12px] font-semibold"
                 style={{ background: 'var(--accent-weak)', color: 'var(--accent-strong)' }}
               >
                 Week {String(data.week).padStart(2, '0')}
               </span>
+              <span>{fmtMonthDay(weekRange(today).start)} – {fmtMonthDay(weekRange(today).end)} · No fixed days · Hit the numbers</span>
             </div>
-            <p className="mt-1.5 text-[13px] text-[var(--text-2)]">
-              {fmtMonthDay(weekRange(today).start)} – {fmtMonthDay(weekRange(today).end)} · No fixed days · Hit the numbers
-            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span
-              className="mono flex items-center gap-1.5 text-[11px] font-medium"
+              className="mono hidden items-center gap-1.5 text-[11px] font-medium sm:flex"
               style={{
                 color: syncStatus === 'error' ? 'var(--danger)' : syncStatus === 'syncing' ? 'var(--warn)' : 'var(--text-3)',
               }}
@@ -1442,9 +1443,11 @@ export default function App() {
             <button
               type="button"
               onClick={signOut}
-              className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-[12px] font-semibold text-[var(--text-2)] hover:text-[var(--text)]"
+              aria-label="Sign out"
+              className="flex h-[38px] items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 text-[12px] font-semibold text-[var(--text-2)] hover:text-[var(--text)] sm:w-auto"
             >
-              Sign out
+              <LogOut size={15} className="sm:hidden" />
+              <span className="hidden sm:inline">Sign out</span>
             </button>
             <button
               type="button"
