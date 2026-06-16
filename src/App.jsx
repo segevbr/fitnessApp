@@ -475,7 +475,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
 
         {phase === 'review' && (
           <>
-            <div className="text-[12px] font-medium text-[var(--text-3)]">Review ▸ {fmtDate(date)}</div>
+            <DateField value={date} onChange={setDate} />
             <div className="space-y-3">
               {circuit.map(ex => (
                 <div key={ex.key} className="space-y-1.5 border-b border-[var(--border)] pb-3 last:border-b-0 last:pb-0">
@@ -992,15 +992,15 @@ function Heatmap({ heat, days, today, onToggle, sessions }) {
   return (
     <div>
       <div ref={scroller} className="overflow-x-auto pb-1">
-        <div className="inline-flex flex-col gap-1.5">
-          <div className="flex gap-[var(--cell-gap)] pl-8">
+        <div className="inline-flex flex-col">
+          <div className="flex gap-[var(--cell-gap)] pl-8" style={{ marginBottom: '4px' }}>
             {cols.map((col, w) => {
               const m = Number(col[0].slice(5, 7)) - 1
               const prevM = w > 0 ? Number(cols[w - 1][0].slice(5, 7)) - 1 : -1
               return (
-                <div key={col[0]} className="relative h-[14px]" style={{ width: 'var(--cell)' }}>
+                <div key={col[0]} style={{ width: 'var(--cell)', flexShrink: 0, position: 'relative', height: '12px' }}>
                   {m !== prevM && (
-                    <span className="absolute left-0 top-0 whitespace-nowrap text-[10px] leading-none text-[var(--text-3)]">
+                    <span style={{ position: 'absolute', left: 0, top: 0, fontSize: '10px', lineHeight: 1, color: 'var(--text-3)', whiteSpace: 'nowrap', pointerEvents: 'none' }}>
                       {MONTHS[m]}
                     </span>
                   )}
