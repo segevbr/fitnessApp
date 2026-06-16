@@ -69,6 +69,47 @@ const freshState = () => ({
 const V2_KEYS = ['pull', 'push', 'legs', 'core']
 const isV2Targets = t => t && typeof t === 'object' && V2_KEYS.every(k => Array.isArray(t[k]))
 
+// Historical session data for Week 1 (Jun 8–13 2026), provided by the user.
+// Used by backfillWk1 to seed the archive if the Wk01 entry has no sessions yet.
+const WK1_SESSIONS = [
+  { id: 'wk1-p1', type: 'park', date: '2026-06-08', struggled: false, restSkips: 0,
+    sets: { pull: [5,5,5], push: [5,5,5], legs: [10,10,10], core: [45,45,45] } },
+  { id: 'wk1-c1', type: 'cardio', date: '2026-06-09', mode: 'run',
+    duration: 1205, distance: 2.79, avgHr: 153, shin: 'good' },
+  { id: 'wk1-p2', type: 'park', date: '2026-06-10', struggled: false, restSkips: 0,
+    sets: { pull: [5,5,5], push: [5,5,5], legs: [10,10,10], core: [45,45,45] } },
+  { id: 'wk1-c2', type: 'cardio', date: '2026-06-11', mode: 'swim',
+    duration: 1362, distance: 1.0, avgHr: 137, shin: 'good' },
+  { id: 'wk1-p3', type: 'park', date: '2026-06-12', struggled: false, restSkips: 0,
+    sets: { pull: [15,15,15], push: [15,15,8], legs: [30,30,20], core: [60,60,45] } },
+  { id: 'wk1-s1', type: 'soccer', date: '2026-06-13',
+    duration: 6310, distance: 5.51, avgHr: 154, shin: 'good' },
+]
+
+// One-time migration: if the Wk01 history entry has no sessions array yet, seed
+// it from WK1_SESSIONS and write those dates into the persistent log so the
+// heatmap draws all six days correctly from storage.
+function backfillWk1(state) {
+  const idx = (state.history || []).findIndex(h => h.week === 1)
+  if (idx === -1 || (state.history[idx].sessions?.length ?? 0) > 0) return state
+  const history = state.history.map((h, i) =>
+    i === idx ? { ...h, sessions: WK1_SESSIONS } : h
+  )
+  const log = { ...state.log }
+  for (const s of WK1_SESSIONS) {
+    if (!(log[s.date]?.n > 0)) {
+      const e = log[s.date] || { n: 0, struggled: false, full: false, cardio: false }
+      log[s.date] = {
+        n: e.n + 1,
+        struggled: e.struggled || !!s.struggled,
+        full: e.full || s.type !== 'cardio',
+        cardio: e.cardio || s.type === 'cardio',
+      }
+    }
+  }
+  return { ...state, history, log }
+}
+
 // Bring any persisted state — from localStorage OR Supabase — onto the current
 // schema. A V1 save uses retired movements (rows/push-ups under the old reset
 // model) that can't be replayed onto the V2 baseline, so we adopt the V2 targets
@@ -78,13 +119,13 @@ const isV2Targets = t => t && typeof t === 'object' && V2_KEYS.every(k => Array.
 const migrate = raw => {
   if (!raw || typeof raw !== 'object') return freshState()
   if (isV2Targets(raw.targets)) {
-    return { ...freshState(), ...raw, targets: { ...defaultTargets(), ...raw.targets } }
+    return backfillWk1({ ...freshState(), ...raw, targets: { ...defaultTargets(), ...raw.targets } })
   }
-  return {
+  return backfillWk1({
     ...freshState(),
     week: typeof raw.week === 'number' ? raw.week : 1,
     history: Array.isArray(raw.history) ? raw.history : [],
-  }
+  })
 }
 
 const loadState = () => {
@@ -903,6 +944,95 @@ function SessionLine({ s, onDelete }) {
   )
 }
 
+// ---------- archive week detail ----------
+
+function WeekDetail({ h, onClose }) {
+  const sessions = useMemo(
+    () => [...(h.sessions || [])].sort((a, b) => a.date.localeCompare(b.date)),
+    [h],
+  )
+  return (
+    <Modal onClose={onClose}>
+      <ModalHeader icon={TrendingUp} title={`Week ${String(h.week).padStart(2, '0')}`} onClose={onClose} />
+      <div className="space-y-3 p-4">
+        <div className="mono flex items-center justify-between rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-2.5 text-[12px]">
+          <span className="text-[var(--text-2)]">P{h.q.parks}/{QUOTA.park} · C{h.q.cardio} · S{h.q.soccer}</span>
+          <span className="text-[var(--text-3)]">{h.deltas}{h.struggled ? ' ⚑' : ''}</span>
+          <span className="font-bold" style={{ color: h.q.met ? 'var(--accent-strong)' : 'var(--warn)' }}>
+            {h.q.met ? 'Met' : 'Missed'}
+          </span>
+        </div>
+
+        {sessions.length > 0 ? (
+          sessions.map(s => {
+            const tag = s.type === 'park' ? 'Park strength' : s.type === 'soccer' ? 'Soccer' : s.mode === 'swim' ? 'Swim' : 'Run'
+            const dot = s.type === 'park' ? 'var(--done)' : s.type === 'soccer' ? 'var(--struggle)' : s.mode === 'swim' ? '#38bdf8' : 'var(--text-2)'
+            return (
+              <div key={s.id} className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full" style={{ background: dot }} />
+                    <span className="text-[13px] font-bold text-[var(--text)]">{tag}</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    {s.struggled && (
+                      <span className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: 'var(--struggle)' }}>
+                        <Flag size={12} /> struggled
+                      </span>
+                    )}
+                    <span className="mono text-[11px] text-[var(--text-3)]">{fmtDate(s.date)}</span>
+                  </div>
+                </div>
+                {s.type === 'park' ? (
+                  <div className="mt-2.5 space-y-1.5">
+                    {EXERCISES.filter(ex => s.sets?.[ex.key]).map(ex => (
+                      <div key={ex.key} className="flex items-center justify-between text-[12px]">
+                        <span className="text-[var(--text-2)]">{ex.short}</span>
+                        <span className="mono font-semibold text-[var(--text)]">
+                          {s.sets[ex.key].join(' · ')}{ex.unit === 'SEC' ? 's' : ''}
+                        </span>
+                      </div>
+                    ))}
+                    {s.restSkips > 0 && (
+                      <div className="text-[11px]" style={{ color: 'var(--warn)' }}>
+                        Rest skipped ×{s.restSkips}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="mono mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[var(--text-2)]">
+                    <span>{fmtDuration(s.duration)}</span>
+                    {s.distance > 0 && <span>{s.distance} km</span>}
+                    {s.avgHr > 0 && <span>{s.avgHr} bpm</span>}
+                    {s.shin && (
+                      <span style={{ color: s.shin === 'tight' ? 'var(--danger)' : 'var(--text-3)' }}>
+                        shin {s.shin}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        ) : (
+          <div className="space-y-2">
+            {(h.parkDates || []).map(date => (
+              <div key={date} className="flex items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] px-3.5 py-2.5 text-[12px]">
+                <span className="h-2 w-2 rounded-full" style={{ background: 'var(--done)' }} />
+                <span className="text-[var(--text)]">Park strength</span>
+                <span className="mono ml-auto text-[var(--text-3)]">{fmtDate(date)}</span>
+              </div>
+            ))}
+            <p className="pt-1 text-center text-[11.5px] text-[var(--text-3)]">
+              Cardio and soccer detail not available for this week.
+            </p>
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 // ---------- activity heatmap (github-style) ----------
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -1123,6 +1253,7 @@ export default function App() {
   const [user, setUser] = useState(null)
   const [authReady, setAuthReady] = useState(false)
   const [syncStatus, setSyncStatus] = useState('idle') // 'idle' | 'syncing' | 'error'
+  const [detailWeek, setDetailWeek] = useState(null) // history entry open in WeekDetail modal
 
   // Theme
   useEffect(() => {
@@ -1185,6 +1316,12 @@ export default function App() {
     [data],
   )
   const sorted = useMemo(() => [...data.sessions].sort((a, b) => a.date.localeCompare(b.date)), [data.sessions])
+  // Merges current-week sessions with every archived week's sessions so DayDetail
+  // can show full set-by-set breakdowns for any date that has stored session data.
+  const allSessions = useMemo(
+    () => [...data.sessions, ...(data.history || []).flatMap(h => h.sessions || [])],
+    [data.sessions, data.history],
+  )
 
   const today = todayStr()
   const heat = useMemo(() => buildHeat(data), [data])
@@ -1202,7 +1339,17 @@ export default function App() {
     })
 
   const addSession = s => {
-    setData(d => ({ ...d, sessions: [...d.sessions, s] }))
+    setData(d => {
+      const log = { ...(d.log || {}) }
+      const e = log[s.date] || { n: 0, struggled: false, full: false, cardio: false }
+      log[s.date] = {
+        n: e.n + 1,
+        struggled: e.struggled || !!s.struggled,
+        full: e.full || s.type !== 'cardio',
+        cardio: e.cardio || s.type === 'cardio',
+      }
+      return { ...d, sessions: [...d.sessions, s], log }
+    })
     setPanel(null)
   }
 
@@ -1233,6 +1380,7 @@ export default function App() {
           deltas: EXERCISES.map(e => `${e.code}${STATUS_SYMBOL[preview.out[e.key].status]}`).join(' '),
           struggled: preview.struggled,
           parkDates: d.sessions.filter(s => s.type === 'park').map(s => s.date),
+          sessions: d.sessions,
         },
         ...d.history,
       ].slice(0, 24),
@@ -1409,7 +1557,7 @@ export default function App() {
             </span>
           }
         >
-          <Heatmap heat={heat} days={data.days || {}} today={today} onToggle={cycleDay} sessions={data.sessions} />
+          <Heatmap heat={heat} days={data.days || {}} today={today} onToggle={cycleDay} sessions={allSessions} />
         </Panel>
 
         <Panel
@@ -1443,7 +1591,12 @@ export default function App() {
             right={<span className="mono text-[11.5px] text-[var(--text-3)]">+ progress · = hold · ■ cap</span>}
           >
             {data.history.map(h => (
-              <div key={h.week} className="flex items-center gap-3 border-t border-[var(--border)] px-[var(--pad)] py-3 text-[13px]">
+              <button
+                key={h.week}
+                type="button"
+                onClick={() => setDetailWeek(h)}
+                className="flex w-full items-center gap-3 border-t border-[var(--border)] px-[var(--pad)] py-3 text-left text-[13px] hover:bg-[var(--surface-2)]"
+              >
                 <span className="min-w-[52px] font-bold text-[var(--text)]">Wk {String(h.week).padStart(2, '0')}</span>
                 <span className="mono min-w-0 flex-1 truncate text-[12px] text-[var(--text-2)]">
                   P{h.q.parks}/{QUOTA.park} · C{h.q.cardio} · S{h.q.soccer}
@@ -1455,7 +1608,7 @@ export default function App() {
                   {h.deltas}
                   {h.struggled ? ' ⚑' : ''}
                 </span>
-              </div>
+              </button>
             ))}
           </Panel>
         )}
@@ -1478,6 +1631,7 @@ export default function App() {
         <CardioLogger kind={panel} sessions={data.sessions} onSave={addSession} onClose={() => setPanel(null)} />
       )}
       {panel === 'review' && <WeekReview data={data} onConfirm={confirmWeek} onClose={() => setPanel(null)} />}
+      {detailWeek && <WeekDetail h={detailWeek} onClose={() => setDetailWeek(null)} />}
     </div>
   )
 }

@@ -185,8 +185,17 @@ export function buildHeat(data) {
     const full = e.full ?? (parkDates.has(date) || !!e.struggled || weekdayOf(date) === 6)
     bump(date, { n: e.n || 0, struggled: !!e.struggled, full, cardio: e.cardio ?? !full })
   }
-  for (const h of data.history || [])
-    for (const date of h.parkDates || []) if (!data.log?.[date]) bump(date, { n: 1, full: true })
+  for (const h of data.history || []) {
+    if (h.sessions) {
+      // New format: full sessions archived. Use as fallback only when log is missing the date.
+      for (const s of h.sessions)
+        if (!(data.log?.[s.date]?.n > 0))
+          bump(s.date, { struggled: !!s.struggled, full: s.type !== 'cardio', cardio: s.type === 'cardio' })
+    } else {
+      // Legacy: only park dates. Use as fallback.
+      for (const date of h.parkDates || []) if (!data.log?.[date]) bump(date, { n: 1, full: true })
+    }
+  }
   for (const s of data.sessions || [])
     bump(s.date, { struggled: !!s.struggled, full: s.type !== 'cardio', cardio: s.type === 'cardio' })
   return heat
