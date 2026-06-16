@@ -6,6 +6,7 @@ import {
   Check,
   ChevronRight,
   Dumbbell,
+  FastForward,
   Flag,
   Footprints,
   HeartPulse,
@@ -27,6 +28,7 @@ import {
 import {
   EXERCISES,
   QUOTA,
+  REST_EX_SECONDS,
   REST_SECONDS,
   SETS,
   STATUS_SYMBOL,
@@ -268,7 +270,12 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
   // variant: session 1 = pistol squats (skill), sessions 2-3 = bodyweight squats.
   const session = parkCount + 1
   const circuit = useMemo(() => exercisesForSession(session), [session])
-  const steps = useMemo(() => circuit.flatMap(ex => [0, 1, 2].map(set => ({ ex, set }))), [circuit])
+  // Round-first order: complete all exercises once (round 1) before starting round 2.
+  // [pull/0, push/0, legs/0, core/0,  pull/1, push/1, legs/1, core/1,  pull/2, ...]
+  const steps = useMemo(
+    () => [0, 1, 2].flatMap(setNum => circuit.map(ex => ({ ex, set: setNum }))),
+    [circuit],
+  )
   const [phase, setPhase] = useState('date') // date -> live -> review
   const [date, setDate] = useState(todayStr())
   const [step, setStep] = useState(0)
@@ -277,9 +284,13 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
   )
   const [input, setInput] = useState(targets[circuit[0].key][0])
   const [restEnd, setRestEnd] = useState(null)
+  const [restDur, setRestDur] = useState(REST_SECONDS)
   const [now, setNow] = useState(Date.now())
   const [skips, setSkips] = useState(0)
   const [struggled, setStruggled] = useState(false)
+
+  // Rest after step i: 2 min at end of each round, 30 s between exercises within a round.
+  const restForStep = i => (i + 1) % circuit.length === 0 ? REST_SECONDS : REST_EX_SECONDS
 
   const cur = steps[Math.min(step, steps.length - 1)]
   const next = steps[step + 1]
@@ -322,9 +333,11 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
     if (step === steps.length - 1) {
       setPhase('review')
     } else {
+      const dur = restForStep(step)
+      setRestDur(dur)
       const t = Date.now()
       setNow(t)
-      setRestEnd(t + REST_SECONDS * 1000)
+      setRestEnd(t + dur * 1000)
     }
   }
 
@@ -341,7 +354,8 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
   const dots = steps.map((s, i) => {
     const logged = values[s.ex.key][s.set] != null
     const active = i === (resting ? step + 1 : step) && phase === 'live'
-    return { logged, active, group: s.set === 0 && i !== 0 }
+    // gap before each new round (every circuit.length steps, except the first dot)
+    return { logged, active, group: i > 0 && i % circuit.length === 0 }
   })
 
   return (
@@ -360,7 +374,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
               {circuit.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 's' : ''}`).join(
                 ' ▸ ',
               )}
-              <div className="mt-1 text-[var(--text-3)]">Mandatory {REST_SECONDS / 60}:00 rest between sets.</div>
+              <div className="mt-1 text-[var(--text-3)]">30s between exercises · {REST_SECONDS / 60}:00 rest between rounds.</div>
             </div>
             <Btn kind={warning ? 'warn' : 'primary'} className="w-full" onClick={() => setPhase('live')}>
               {warning ? 'Override & start' : 'Start circuit'} <ChevronRight size={16} />
@@ -384,7 +398,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 />
               ))}
               <span className="mono ml-auto text-[11px] text-[var(--text-3)]">
-                Set {Math.min(step + 1, steps.length)}/{steps.length}
+                Round {cur.set + 1}/{SETS}
               </span>
             </div>
 
@@ -430,7 +444,11 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 )}
                 <Btn kind="primary" className="w-full" onClick={logSet}>
                   <Check size={16} /> Log set
-                  {step < steps.length - 1 && <span className="text-[11px] opacity-70">▸ starts 2:00 rest</span>}
+                  {step < steps.length - 1 && (
+                    <span className="text-[11px] opacity-70">
+                      ▸ {restForStep(step) === REST_SECONDS ? '2:00 rest' : '30s break'}
+                    </span>
+                  )}
                 </Btn>
               </form>
             )}
@@ -441,7 +459,7 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 style={{ background: 'var(--accent-weak)', border: '1px solid color-mix(in srgb, var(--accent) 30%, transparent)' }}
               >
                 <div className="flex items-center justify-center gap-2 text-[12px] font-semibold" style={{ color: 'var(--accent-strong)' }}>
-                  <Timer size={14} /> Rest protocol — mandatory
+                  <Timer size={14} /> {restDur >= REST_SECONDS ? 'Rest protocol — mandatory' : 'Short break'}
                 </div>
                 <div className="mono text-6xl font-bold text-[var(--text)]">
                   {Math.floor(remaining / 60)}:{String(remaining % 60).padStart(2, '0')}
@@ -449,25 +467,34 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--surface-2)]">
                   <div
                     className="h-full rounded-full transition-all duration-200"
-                    style={{ width: `${((REST_SECONDS - remaining) / REST_SECONDS) * 100}%`, background: 'var(--accent)' }}
+                    style={{ width: `${((restDur - remaining) / restDur) * 100}%`, background: 'var(--accent)' }}
                   />
                 </div>
                 {next && (
                   <div className="text-[12px] text-[var(--text-2)]">
-                    Next ▸ {next.ex.short} · set {next.set + 1}/{SETS} · target {targets[next.ex.key][next.set]}
+                    Next ▸ {next.ex.short} · round {next.set + 1}/{SETS} · target {targets[next.ex.key][next.set]}
                     {next.ex.unit === 'SEC' ? 's' : ''}
                   </div>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSkips(s => s + 1)
-                    advance()
-                  }}
-                  className="mx-auto flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-3)] hover:text-[var(--warn)]"
-                >
-                  <SkipForward size={13} /> Skip rest — logged as violation
-                </button>
+                <div className="flex items-center justify-center gap-5">
+                  <button
+                    type="button"
+                    onClick={() => setRestEnd(e => Math.max(Date.now() + 1000, e - 5000))}
+                    className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-3)] hover:text-[var(--accent-strong)]"
+                  >
+                    <FastForward size={13} /> -5s
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSkips(s => s + 1)
+                      advance()
+                    }}
+                    className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--text-3)] hover:text-[var(--warn)]"
+                  >
+                    <SkipForward size={13} /> Skip — violation
+                  </button>
+                </div>
               </div>
             )}
           </>

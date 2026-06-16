@@ -7,7 +7,8 @@
 // retired — caps are now ceilings the targets hold at, not reset triggers.
 
 export const SETS = 3
-export const REST_SECONDS = 120
+export const REST_SECONDS = 120   // between rounds (full 2-min recovery)
+export const REST_EX_SECONDS = 30 // between exercises within a round
 
 // Every exercise that can hold a target. The leg slot has two variants
 // (pistol / bodyweight) that the weekly hybrid schedule swaps between — both
