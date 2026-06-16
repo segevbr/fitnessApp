@@ -1065,8 +1065,9 @@ function Heatmap({ heat, days, today, onToggle, sessions }) {
                       type="button"
                       disabled={!clickable}
                       onClick={() => {
-                        if (status === 'rest' || status === 'missed') onToggle(date)
-                        else if (isWorkout) setOpenDate(date)
+                        if (status === 'future') return
+                        if ((heat[date]?.n ?? 0) > 0) setOpenDate(date)
+                        else onToggle(date)
                       }}
                       title={status === 'future' ? fmtDate(date) : `${fmtDate(date)} — ${HEAT_LABEL[status]}`}
                       style={{
@@ -1094,7 +1095,7 @@ function Heatmap({ heat, days, today, onToggle, sessions }) {
           <HeatSwatch color={HEAT_CELL.missed} label="Missed" />
           <HeatSwatch color={HEAT_CELL.rest} label="Rest" />
         </div>
-        <span className="text-[var(--text-3)]">Tap a workout for details · a rest day to flag it missed</span>
+        <span className="text-[var(--text-3)]">Tap a workout for details · tap a rest day to mark it (cardio → missed → clear)</span>
       </div>
       {openDate && <DayDetail date={openDate} sessions={sessions} heat={heat} onClose={() => setOpenDate(null)} />}
     </div>
@@ -1188,11 +1189,15 @@ export default function App() {
   const today = todayStr()
   const heat = useMemo(() => buildHeat(data), [data])
   const activity = useMemo(() => heatStats(heat, data.days || {}, today), [heat, data.days, today])
-  const toggleMissed = date =>
+  // Cycles a rest day through: (nothing) → cardio → missed → (nothing).
+  // Only applies when the day has no real logged session (heat[date]?.n === 0).
+  const cycleDay = date =>
     setData(d => {
       const days = { ...(d.days || {}) }
-      if (days[date] === 'missed') delete days[date]
-      else days[date] = 'missed'
+      const cur = days[date]
+      if (!cur) days[date] = 'cardio'
+      else if (cur === 'cardio') days[date] = 'missed'
+      else delete days[date]
       return { ...d, days }
     })
 
@@ -1404,7 +1409,7 @@ export default function App() {
             </span>
           }
         >
-          <Heatmap heat={heat} days={data.days || {}} today={today} onToggle={toggleMissed} sessions={data.sessions} />
+          <Heatmap heat={heat} days={data.days || {}} today={today} onToggle={cycleDay} sessions={data.sessions} />
         </Panel>
 
         <Panel

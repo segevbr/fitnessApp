@@ -204,9 +204,8 @@ export function heatColumns(today) {
   return cols
 }
 
-// Day status: a struggled flag wins (amber); a strength/soccer day is a full
-// green 'worked'; a cardio-only day is light green 'cardio'; else a manual
-// missed mark; else (past/today with no workout) a rest day; future renders empty.
+// Day status: actual logged sessions win; then manual day marks (cardio/missed)
+// applied by the user to days with no logged session; else rest; future = empty.
 export function heatStatus(date, heat, days, today) {
   if (date > today) return 'future'
   const h = heat[date]
@@ -214,6 +213,7 @@ export function heatStatus(date, heat, days, today) {
     if (h.struggled) return 'struggled'
     return h.full ? 'worked' : 'cardio'
   }
+  if (days[date] === 'cardio') return 'cardio'
   if (days[date] === 'missed') return 'missed'
   return 'rest'
 }
