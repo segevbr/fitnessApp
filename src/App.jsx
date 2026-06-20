@@ -43,6 +43,8 @@ import {
   heatColumns,
   heatStats,
   heatStatus,
+  phaseAExercises,
+  phaseBExercisesForSession,
   quotaStatus,
   runDayWarning,
   todayStr,
@@ -411,13 +413,44 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
             {parkCount >= QUOTA.park && (
               <WarnBox>Park quota already met {parkCount}/{QUOTA.park} — this logs as extra volume.</WarnBox>
             )}
-            <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-3 text-[12px] leading-relaxed text-[var(--text-2)]">
-              <span className="font-semibold text-[var(--text)]">Circuit ▸ </span>
-              {circuit.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 's' : ''}`).join(
-                ' ▸ ',
-              )}
-              <div className="mt-1 text-[var(--text-3)]">30s between exercises · {REST_SECONDS / 60}:00 rest between rounds.</div>
-            </div>
+            {session === 1 ? (
+              <div className="space-y-2.5 rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-3 text-[12px]">
+                <div>
+                  <span
+                    className="mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]"
+                    style={{ background: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' }}
+                  >
+                    Phase A · Skill &amp; Neural
+                  </span>
+                  <div className="text-[11px] text-[var(--text-3)]">High focus, low fatigue. Stop well before failure.</div>
+                  <div className="mt-1 leading-relaxed text-[var(--text-2)]">
+                    {circuit.filter(e => e.skillSlot).map(e =>
+                      `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 's' : ''}`
+                    ).join(' ▸ ')}
+                  </div>
+                </div>
+                <div className="border-t border-[var(--border)] pt-2.5">
+                  <span
+                    className="mb-1 inline-block rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]"
+                    style={{ background: 'var(--accent-weak)', color: 'var(--accent-strong)' }}
+                  >
+                    Phase B · Strength &amp; Volume
+                  </span>
+                  <div className="mt-1 leading-relaxed text-[var(--text-2)]">
+                    {circuit.filter(e => !e.skillSlot).map(e =>
+                      `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 's' : ''}`
+                    ).join(' ▸ ')}
+                  </div>
+                </div>
+                <div className="text-[var(--text-3)]">30s between exercises · {REST_SECONDS / 60}:00 rest between rounds.</div>
+              </div>
+            ) : (
+              <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-3 text-[12px] leading-relaxed text-[var(--text-2)]">
+                <span className="font-semibold text-[var(--text)]">Circuit ▸ </span>
+                {circuit.map(e => `${e.label} ${SETS}×[${targets[e.key].join('·')}]${e.unit === 'SEC' ? 's' : ''}`).join(' ▸ ')}
+                <div className="mt-1 text-[var(--text-3)]">30s between exercises · {REST_SECONDS / 60}:00 rest between rounds.</div>
+              </div>
+            )}
             <Btn kind={warning ? 'warn' : 'primary'} className="w-full" onClick={() => setPhase('live')}>
               {warning ? 'Override & start' : 'Start circuit'} <ChevronRight size={16} />
             </Btn>
@@ -454,8 +487,18 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
               >
                 <div className="flex items-baseline justify-between">
                   <div>
-                    <div className="text-[11px] font-medium text-[var(--text-3)]">
-                      {cur.ex.label} · {circuit.findIndex(e => e.key === cur.ex.key) + 1}/4
+                    <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-medium text-[var(--text-3)]">
+                      {session === 1 && (
+                        <span
+                          className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em]"
+                          style={cur.ex.skillSlot
+                            ? { background: 'color-mix(in srgb, var(--warn) 15%, transparent)', color: 'var(--warn)' }
+                            : { background: 'var(--accent-weak)', color: 'var(--accent-strong)' }}
+                        >
+                          {cur.ex.skillSlot ? 'Phase A' : 'Phase B'}
+                        </span>
+                      )}
+                      {cur.ex.label} · {circuit.findIndex(e => e.key === cur.ex.key) + 1}/{circuit.length}
                     </div>
                     <div className="text-2xl font-extrabold text-[var(--text)]">{cur.ex.short}</div>
                   </div>
@@ -542,36 +585,61 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
           </>
         )}
 
-        {phase === 'review' && (
+        {phase === 'review' && (() => {
+          const renderExRow = ex => (
+            <div key={ex.key} className="space-y-1.5 border-b border-[var(--border)] pb-3 last:border-b-0 last:pb-0">
+              <div className="flex items-baseline justify-between">
+                <span className="text-[13px] font-semibold text-[var(--text)]">{ex.short}</span>
+                <span className="mono text-[11px] text-[var(--text-3)]">
+                  target {targets[ex.key].join('·')}{ex.unit === 'SEC' ? 's' : ''}
+                </span>
+              </div>
+              <div className="flex gap-1.5">
+                {[0, 1, 2].map(s => (
+                  <NumInput
+                    key={s}
+                    grow
+                    step={ex.inc}
+                    value={values[ex.key][s] ?? 0}
+                    onChange={v =>
+                      setValues(prev => {
+                        const copy = { ...prev, [ex.key]: [...prev[ex.key]] }
+                        copy[ex.key][s] = v
+                        return copy
+                      })
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+          )
+          return (
           <>
             <DateField value={date} onChange={setDate} />
-            <div className="space-y-3">
-              {circuit.map(ex => (
-                <div key={ex.key} className="space-y-1.5 border-b border-[var(--border)] pb-3 last:border-b-0 last:pb-0">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-[13px] font-semibold text-[var(--text)]">{ex.short}</span>
-                    <span className="mono text-[11px] text-[var(--text-3)]">target {targets[ex.key].join('·')}</span>
+            {session === 1 ? (
+              <div className="space-y-4">
+                <div>
+                  <div
+                    className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.06em]"
+                    style={{ color: 'var(--warn)' }}
+                  >
+                    Phase A · Skill &amp; Neural
                   </div>
-                  <div className="flex gap-1.5">
-                    {[0, 1, 2].map(s => (
-                      <NumInput
-                        key={s}
-                        grow
-                        step={ex.inc}
-                        value={values[ex.key][s] ?? 0}
-                        onChange={v =>
-                          setValues(prev => {
-                            const copy = { ...prev, [ex.key]: [...prev[ex.key]] }
-                            copy[ex.key][s] = v
-                            return copy
-                          })
-                        }
-                      />
-                    ))}
-                  </div>
+                  <div className="space-y-3">{circuit.filter(ex => ex.skillSlot).map(renderExRow)}</div>
                 </div>
-              ))}
-            </div>
+                <div className="border-t border-[var(--border)] pt-3">
+                  <div
+                    className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.06em]"
+                    style={{ color: 'var(--accent-strong)' }}
+                  >
+                    Phase B · Strength &amp; Volume
+                  </div>
+                  <div className="space-y-3">{circuit.filter(ex => !ex.skillSlot).map(renderExRow)}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">{circuit.map(renderExRow)}</div>
+            )}
             {skips > 0 && <WarnBox>Rest timer skipped ×{skips} — recovery protocol violated.</WarnBox>}
             <Btn kind={struggled ? 'warn' : 'ghost'} className="w-full" onClick={() => setStruggled(s => !s)}>
               <Flag size={15} /> {struggled ? 'Struggled — progression will hold' : 'Flag as struggled'}
@@ -593,7 +661,8 @@ function ParkLogger({ targets, parkDates, parkCount, onSave, onClose }) {
               <Check size={16} /> Save session
             </Btn>
           </>
-        )}
+          )
+        })()}
       </div>
     </Modal>
   )
@@ -821,7 +890,7 @@ function WeekReview({ data, onConfirm, onClose }) {
         </div>
 
         <div className="rounded-[var(--radius-sm)] bg-[var(--surface-2)] px-3.5 py-2.5 text-[11.5px] leading-relaxed text-[var(--text-2)]">
-          V2.1 engine ▸ strict hold if any set missed · +1 to set 1 only · pistols cap 3 · squats cap 15 · plank cap 60s
+          V2.2 engine ▸ Phase A (pike/l-sit/pistol) held static · Phase B: strict hold if any set missed · +1 to set 1 only · squats cap 15 · plank cap 60s
         </div>
 
         <Btn kind="primary" className="w-full" onClick={() => onConfirm(preview)}>
@@ -1467,7 +1536,7 @@ export default function App() {
         >
           <div className="flex items-center gap-2.5" style={{ color: 'var(--accent-strong)' }}>
             <Unlock size={16} className="shrink-0" />
-            <span className="text-[13.5px] font-bold">v2.1 · Flat Push &amp; Hybrid Legs Online</span>
+            <span className="text-[13.5px] font-bold">V2.2 · Phase A Skill Slot Online</span>
           </div>
           <span
             className="hidden items-center gap-2 text-[12px] font-semibold sm:flex"
@@ -1477,7 +1546,7 @@ export default function App() {
               className="h-[7px] w-[7px] rounded-full"
               style={{ background: 'var(--accent)', boxShadow: '0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent)' }}
             />
-            Hybrid legs active
+            Pike · L-sit · Pistol active
           </span>
         </div>
 
@@ -1524,8 +1593,8 @@ export default function App() {
           title="Strength targets"
           sub={`Week ${String(data.week).padStart(2, '0')} · next: session ${q.parks + 1}`}
         >
-          <div className="grid grid-cols-2 gap-[var(--gap)] sm:grid-cols-4">
-            {exercisesForSession(q.parks + 1).map(ex => (
+          {(() => {
+            const exCard = ex => (
               <div key={ex.key} className="rounded-[var(--radius-sm)] border border-[var(--border)] bg-[var(--surface-2)] p-3.5">
                 <div className="text-[10.5px] font-bold uppercase leading-tight tracking-[0.05em] text-[var(--text-3)]">
                   {ex.label}
@@ -1547,8 +1616,38 @@ export default function App() {
                   </div>
                 )}
               </div>
-            ))}
-          </div>
+            )
+            return q.parks + 1 === 1 ? (
+              <div className="space-y-4">
+                <div>
+                  <div className="mb-2.5 flex items-center gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[0.06em]" style={{ color: 'var(--warn)' }}>
+                      Phase A
+                    </span>
+                    <span className="text-[10px] text-[var(--text-3)]">· Skill &amp; Neural · Static targets</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-[var(--gap)]">
+                    {phaseAExercises().map(exCard)}
+                  </div>
+                </div>
+                <div className="border-t border-[var(--border)] pt-4">
+                  <div className="mb-2.5 flex items-center gap-2">
+                    <span className="text-[10.5px] font-bold uppercase tracking-[0.06em]" style={{ color: 'var(--accent-strong)' }}>
+                      Phase B
+                    </span>
+                    <span className="text-[10px] text-[var(--text-3)]">· Strength &amp; Volume · Progressive</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-[var(--gap)]">
+                    {phaseBExercisesForSession(1).map(exCard)}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-[var(--gap)] sm:grid-cols-4">
+                {exercisesForSession(q.parks + 1).map(exCard)}
+              </div>
+            )
+          })()}
         </Panel>
 
         <Panel
@@ -1617,7 +1716,7 @@ export default function App() {
         )}
 
         <footer className="mt-5 text-center text-[11.5px] leading-[1.8] text-[var(--text-3)]">
-          48h between park sessions · Squats / plank capped · Tight shin ⇒ swim only · No runs Fri / Sun · Rest 2:00
+          48h between park sessions · Phase A static · Squats / plank capped · Tight shin ⇒ swim only · No runs Fri / Sun · Rest 2:00
         </footer>
       </div>
 

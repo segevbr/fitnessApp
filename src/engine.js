@@ -10,26 +10,36 @@ export const SETS = 3
 export const REST_SECONDS = 120   // between rounds (full 2-min recovery)
 export const REST_EX_SECONDS = 30 // between exercises within a round
 
-// Every exercise that can hold a target. The leg slot has two variants
-// (pistol / bodyweight) that the weekly hybrid schedule swaps between — both
-// start at their cap, so they never progress (they protect the soccer leg budget).
+// V2.2: Phase A = neural skill work (skillSlot: true, cap === start → always held).
+// Phase B = strength & volume (eligible for +1 micro-progression per set 1).
+// Session 1 (first park of the week) runs Phase A then Phase B (no squats).
+// Sessions 2–3 run Phase B only (pull, push, squats, plank).
 export const EXERCISES = [
+  // Phase A — static skill slots, cap locks them at start so they never auto-progress
+  { key: 'pike',   label: 'PIKE PUSH-UPS',     short: 'PIKE PU',  code: 'PIK', unit: 'REPS', start: 3,  inc: 1, cap: 3,   note: '3–5 reps. Neural skill. Stop 2 from failure.', skillSlot: true },
+  { key: 'lsit',  label: 'TUCK L-SIT',        short: 'L-SIT',    code: 'LST', unit: 'SEC',  start: 10, inc: 5, cap: 10,  note: '10–15s hold. Stop before form breaks.', skillSlot: true },
+  { key: 'pistol', label: 'PISTOL SQUATS',     short: 'PISTOLS',  code: 'PST', unit: 'REPS', start: 3,  inc: 1, cap: 3,   note: 'Neural skill work. 3 per leg max.', skillSlot: true },
+  // Phase B — progressive
   { key: 'pull',   label: 'NEGATIVE PULL-UPS', short: 'PULL-UPS', code: 'PUL', unit: 'REPS', start: 5,  inc: 1, cap: null, note: null },
   { key: 'push',   label: 'FLAT PUSH-UPS',     short: 'PUSH-UPS', code: 'PSH', unit: 'REPS', start: 12, inc: 1, cap: null, note: null },
-  { key: 'pistol', label: 'PISTOL SQUATS',     short: 'PISTOLS',  code: 'PST', unit: 'REPS', start: 3,  inc: 1, cap: 3,    note: 'Neural skill work. 3 per leg max.' },
-  { key: 'legs',   label: 'BODYWEIGHT SQUATS', short: 'SQUATS',   code: 'SQT', unit: 'REPS', start: 15, inc: 1, cap: 15,   note: 'Active recovery. Hard cap at 15.' },
-  { key: 'core',   label: 'PLANK',             short: 'PLANK',    code: 'PLK', unit: 'SEC',  start: 60, inc: 5, cap: 60,   note: null },
+  { key: 'legs',   label: 'BODYWEIGHT SQUATS', short: 'SQUATS',   code: 'SQT', unit: 'REPS', start: 15, inc: 1, cap: 15,  note: 'Active recovery. Hard cap at 15.' },
+  { key: 'core',   label: 'PLANK',             short: 'PLANK',    code: 'PLK', unit: 'SEC',  start: 60, inc: 5, cap: 60,  note: null },
 ]
 
 const byKey = k => EXERCISES.find(e => e.key === k)
 
-// Dynamic hybrid leg schedule: strength session 1 of the week is skill work
-// (pistol squats), sessions 2-3 are active recovery (bodyweight squats).
-export const legExerciseForSession = session => (session <= 1 ? byKey('pistol') : byKey('legs'))
+// Session 1: Phase A (skill) + Phase B without squats.
+// Sessions 2–3: Phase B only (pull, push, squats, plank).
+export const phaseAExercises = () => [byKey('pike'), byKey('lsit'), byKey('pistol')]
+export const phaseBExercisesForSession = session =>
+  session <= 1
+    ? [byKey('pull'), byKey('push'), byKey('core')]
+    : [byKey('pull'), byKey('push'), byKey('legs'), byKey('core')]
 
-// The four exercises in a given session's circuit (1-indexed session), in
-// circuit order: pull, push, the session's leg variant, core.
-export const exercisesForSession = session => [byKey('pull'), byKey('push'), legExerciseForSession(session), byKey('core')]
+export const exercisesForSession = session =>
+  session <= 1
+    ? [...phaseAExercises(), ...phaseBExercisesForSession(session)]
+    : phaseBExercisesForSession(session)
 
 export const QUOTA = { park: 3, cardio: 2, soccer: 1 }
 
@@ -126,7 +136,8 @@ export function computeProgression(targets, sessions) {
     }
     // All logged sets met or exceeded target.
     if (ex.cap != null && t[0] + ex.inc > ex.cap) {
-      out[ex.key] = mk('cap', `CEILING ${capLabel(ex)} — BUDGET LOCK`)
+      const reason = ex.skillSlot ? 'SKILL SLOT — STATIC HOLD' : `CEILING ${capLabel(ex)} — BUDGET LOCK`
+      out[ex.key] = mk('cap', reason)
       continue
     }
     const next = [...t]
